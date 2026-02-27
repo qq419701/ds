@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}订单列表{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>📋 订单管理</h2>
+</div>
+
+<form method="get" class="row g-3 mb-4">
+    <div class="col-md-3">
+        <select name="shop_type" class="form-select">
+            <option value="0" {% if shop_type == 0 %}selected{% endif %}>全部类型</option>
+            <option value="1" {% if shop_type == 1 %}selected{% endif %}>游戏点卡</option>
+            <option value="2" {% if shop_type == 2 %}selected{% endif %}>通用交易</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select name="order_status" class="form-select">
+            <option value="-1" {% if order_status == -1 %}selected{% endif %}>全部状态</option>
+            <option value="0" {% if order_status == 0 %}selected{% endif %}>待处理</option>
+            <option value="1" {% if order_status == 1 %}selected{% endif %}>处理中</option>
+            <option value="2" {% if order_status == 2 %}selected{% endif %}>已完成</option>
+            <option value="4" {% if order_status == 4 %}selected{% endif %}>已退款</option>
+        </select>
+    </div>
+    <div class="col-md-4">
+        <input type="text" name="keyword" class="form-control" placeholder="搜索订单号" value="{{ keyword }}">
+    </div>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100">搜索</button>
+    </div>
+</form>
+
+<div class="table-responsive">
+    <table class="table table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>订单号</th>
+                <th>类型</th>
+                <th>状态</th>
+                <th>金额</th>
+                <th>创建时间</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for order in orders.items %}
+        <tr>
+            <td>{{ order.order_id }}</td>
+            <td>
+                {% if order.shop_type == 1 %}
+                <span class="badge bg-primary">游戏点卡</span>
+                {% if order.order_type == 1 %}<span class="badge bg-info">直充</span>{% else %}<span class="badge bg-secondary">卡密</span>{% endif %}
+                {% else %}
+                <span class="badge bg-success">通用交易</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if order.order_status == 0 %}<span class="badge bg-warning">待处理</span>
+                {% elif order.order_status == 1 %}<span class="badge bg-info">处理中</span>
+                {% elif order.order_status == 2 %}<span class="badge bg-success">已完成</span>
+                {% elif order.order_status == 4 %}<span class="badge bg-danger">已退款</span>
+                {% else %}<span class="badge bg-secondary">未知</span>{% endif %}
+            </td>
+            <td>{{ order.total_price or '-' }}</td>
+            <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else '-' }}</td>
+            <td>
+                <a href="{{ url_for('admin.order_detail', order_id=order.id) }}" class="btn btn-sm btn-outline-primary">详情</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted">暂无订单</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if orders.pages > 1 %}
+<nav>
+    <ul class="pagination justify-content-center">
+        {% for page_num in orders.iter_pages() %}
+        {% if page_num %}
+        <li class="page-item {% if page_num == orders.page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('admin.order_list', page=page_num, shop_type=shop_type, order_status=order_status, keyword=keyword) }}">{{ page_num }}</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">...</span></li>
+        {% endif %}
+        {% endfor %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}默认地址配置{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>📍 默认地址配置 - {{ shop.name }}</h2>
+    <a href="{{ url_for('settings.index') }}" class="btn btn-outline-secondary">← 返回</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="post">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">收件人姓名</label>
+                    <input type="text" name="name" class="form-control" value="{{ address.get('name', '') }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">联系电话</label>
+                    <input type="text" name="phone" class="form-control" value="{{ address.get('phone', '') }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">省份</label>
+                    <input type="text" name="province" class="form-control" value="{{ address.get('province', '') }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">城市</label>
+                    <input type="text" name="city" class="form-control" value="{{ address.get('city', '') }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">区/县</label>
+                    <input type="text" name="district" class="form-control" value="{{ address.get('district', '') }}">
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label">详细地址</label>
+                    <input type="text" name="address" class="form-control" value="{{ address.get('address', '') }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">邮政编码</label>
+                    <input type="text" name="zip_code" class="form-control" value="{{ address.get('zip_code', '') }}">
+                </div>
+            </div>
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">保存地址</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

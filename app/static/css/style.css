@@ -1,0 +1,72 @@
+/* DS 订单管理系统样式 */
+body {
+    background-color: #f8f9fa;
+    font-family: 'Microsoft YaHei', '微软雅黑', sans-serif;
+}
+
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+.card {
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    margin-bottom: 1rem;
+}
+
+.card-header {
+    border-radius: 8px 8px 0 0 !important;
+    font-weight: 600;
+}
+
+.table th {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.badge {
+    font-size: 0.8em;
+}
+
+.btn {
+    border-radius: 6px;
+}
+
+.alert {
+    border-radius: 8px;
+}
+
+pre {
+    background: #f4f4f4;
+    padding: 1rem;
+    border-radius: 6px;
+    font-size: 0.9em;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.pagination .page-link {
+    color: #343a40;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #343a40;
+    border-color: #343a40;
+}
+
+.nav-tabs .nav-link {
+    color: #495057;
+}
+
+.nav-tabs .nav-link.active {
+    font-weight: 600;
+}
+
+.stat-card {
+    transition: transform 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-3px);
+}

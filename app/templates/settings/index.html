@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}店铺配置{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>⚙️ 店铺配置</h2>
+    <a href="{{ url_for('settings.shop_new') }}" class="btn btn-primary">+ 新建店铺</a>
+</div>
+
+<div class="row g-4">
+{% for shop in shops %}
+<div class="col-md-6">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>{{ shop.name }}</strong>
+            <div>
+                {% if shop.agiso_enabled %}<span class="badge bg-success">阿奇索</span>{% endif %}
+                {% if shop.auto_deliver %}<span class="badge bg-warning">假发货</span>{% endif %}
+            </div>
+        </div>
+        <div class="card-body">
+            <p class="mb-1"><small class="text-muted">游戏点卡客户ID：</small> {{ shop.game_customer_id or '未配置' }}</p>
+            <p class="mb-1"><small class="text-muted">通用交易商家ID：</small> {{ shop.general_vendor_id or '未配置' }}</p>
+        </div>
+        <div class="card-footer">
+            <a href="{{ url_for('settings.shop_edit', shop_id=shop.id) }}" class="btn btn-sm btn-primary">编辑</a>
+            <a href="{{ url_for('settings.default_address', shop_id=shop.id) }}" class="btn btn-sm btn-secondary">默认地址</a>
+            <form method="post" action="{{ url_for('settings.shop_delete', shop_id=shop.id) }}" class="d-inline">
+                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('确认删除？')">删除</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="col"><p class="text-muted">暂无店铺配置，<a href="{{ url_for('settings.shop_new') }}">点击新建</a></p></div>
+{% endfor %}
+</div>
+{% endblock %}

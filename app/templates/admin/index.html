@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}后台首页{% endblock %}
+{% block content %}
+<h2 class="mb-4">📊 系统概览</h2>
+<div class="row g-4">
+    <div class="col-md-3">
+        <div class="card text-center border-primary stat-card">
+            <div class="card-body">
+                <h2 class="text-primary">{{ total_orders }}</h2>
+                <p class="card-text">总订单数</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center border-warning stat-card">
+            <div class="card-body">
+                <h2 class="text-warning">{{ pending_orders }}</h2>
+                <p class="card-text">待处理</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center border-success stat-card">
+            <div class="card-body">
+                <h2 class="text-success">{{ completed_orders }}</h2>
+                <p class="card-text">已完成</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center border-danger stat-card">
+            <div class="card-body">
+                <h2 class="text-danger">{{ refunded_orders }}</h2>
+                <p class="card-text">已退款</p>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="mt-4">
+    <a href="{{ url_for('admin.order_list') }}" class="btn btn-primary">查看所有订单</a>
+    <a href="{{ url_for('settings.index') }}" class="btn btn-secondary ms-2">店铺配置</a>
+</div>
+{% endblock %}

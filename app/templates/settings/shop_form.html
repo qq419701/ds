@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}{{ '编辑店铺' if shop else '新建店铺' }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>{{ '编辑店铺' if shop else '新建店铺' }}</h2>
+    <a href="{{ url_for('settings.index') }}" class="btn btn-outline-secondary">← 返回</a>
+</div>
+
+<form method="post">
+    <ul class="nav nav-tabs mb-4" id="configTab">
+        <li class="nav-item"><button class="nav-link active" type="button" data-bs-toggle="tab" data-bs-target="#basic">基本信息</button></li>
+        <li class="nav-item"><button class="nav-link" type="button" data-bs-toggle="tab" data-bs-target="#game">游戏点卡</button></li>
+        <li class="nav-item"><button class="nav-link" type="button" data-bs-toggle="tab" data-bs-target="#general">通用交易</button></li>
+        <li class="nav-item"><button class="nav-link" type="button" data-bs-toggle="tab" data-bs-target="#agiso">阿奇索</button></li>
+    </ul>
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="basic">
+            <div class="card"><div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">店铺名称 *</label>
+                    <input type="text" name="name" class="form-control" value="{{ shop.name if shop else '' }}" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">假发货模式</label>
+                    <select name="auto_deliver" class="form-select">
+                        <option value="0" {% if not shop or shop.auto_deliver == 0 %}selected{% endif %}>禁用</option>
+                        <option value="1" {% if shop and shop.auto_deliver == 1 %}selected{% endif %}>启用</option>
+                    </select>
+                </div>
+            </div></div>
+        </div>
+
+        <div class="tab-pane fade" id="game">
+            <div class="card"><div class="card-body">
+                <h5 class="card-title">🎮 游戏点卡配置</h5>
+                <div class="mb-3">
+                    <label class="form-label">商家编号（customerId）</label>
+                    <input type="text" name="game_customer_id" class="form-control" value="{{ shop.game_customer_id if shop else '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">MD5私钥</label>
+                    <input type="text" name="game_md5_secret" class="form-control" value="{{ shop.game_md5_secret if shop else '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">通用回调URL（game_api_url）</label>
+                    <input type="text" name="game_api_url" class="form-control" value="{{ shop.game_api_url if shop else '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">直充专用回调URL</label>
+                    <input type="text" name="game_direct_callback_url" class="form-control" value="{{ shop.game_direct_callback_url if shop else '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">卡密专用回调URL</label>
+                    <input type="text" name="game_card_callback_url" class="form-control" value="{{ shop.game_card_callback_url if shop else '' }}">
+                </div>
+            </div></div>
+        </div>
+
+        <div class="tab-pane fade" id="general">
+            <div class="card"><div class="card-body">
+                <h5 class="card-title">🏪 通用交易配置</h5>
+                <div class="mb-3">
+                    <label class="form-label">商家ID（vendorId）</label>
+                    <input type="text" name="general_vendor_id" class="form-control" value="{{ shop.general_vendor_id if shop else '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">MD5私钥</label>
+                    <input type="text" name="general_md5_secret" class="form-control" value="{{ shop.general_md5_secret if shop else '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">AES密钥（卡密加密）</label>
+                    <input type="text" name="general_aes_secret" class="form-control" value="{{ shop.general_aes_secret if shop else '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">回调URL</label>
+                    <input type="text" name="general_callback_url" class="form-control" value="{{ shop.general_callback_url if shop else '' }}">
+                </div>
+            </div></div>
+        </div>
+
+        <div class="tab-pane fade" id="agiso">
+            <div class="card"><div class="card-body">
+                <h5 class="card-title">🤖 阿奇索配置</h5>
+                <div class="mb-3">
+                    <label class="form-label">启用阿奇索</label>
+                    <select name="agiso_enabled" class="form-select">
+                        <option value="0" {% if not shop or shop.agiso_enabled == 0 %}selected{% endif %}>禁用</option>
+                        <option value="1" {% if shop and shop.agiso_enabled == 1 %}selected{% endif %}>启用</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">AppId</label>
+                    <input type="text" name="agiso_app_id" class="form-control" value="{{ shop.agiso_app_id if shop else '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">AppSecret</label>
+                    <input type="text" name="agiso_app_secret" class="form-control" value="{{ shop.agiso_app_secret if shop else '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Access Token</label>
+                    <input type="text" name="agiso_access_token" class="form-control" value="{{ shop.agiso_access_token if shop else '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Host</label>
+                    <input type="text" name="agiso_host" class="form-control" value="{{ shop.agiso_host if shop else '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Port</label>
+                    <input type="text" name="agiso_port" class="form-control" value="{{ shop.agiso_port if shop else '' }}">
+                </div>
+            </div></div>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <button type="submit" class="btn btn-primary">保存配置</button>
+        <a href="{{ url_for('settings.index') }}" class="btn btn-secondary ms-2">取消</a>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}订单详情 - {{ order.order_id }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>📦 订单详情</h2>
+    <a href="{{ url_for('admin.order_list') }}" class="btn btn-outline-secondary">← 返回列表</a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">基本信息</div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr><th width="150">订单号</th><td>{{ order.order_id }}</td></tr>
+                    <tr><th>类型</th><td>{{ '游戏点卡' if order.shop_type == 1 else '通用交易' }} / {{ '直充' if order.order_type == 1 else '卡密' }}</td></tr>
+                    <tr><th>状态</th><td>
+                        {% if order.order_status == 0 %}<span class="badge bg-warning">待处理</span>
+                        {% elif order.order_status == 1 %}<span class="badge bg-info">处理中</span>
+                        {% elif order.order_status == 2 %}<span class="badge bg-success">已完成</span>
+                        {% elif order.order_status == 4 %}<span class="badge bg-danger">已退款</span>
+                        {% endif %}
+                    </td></tr>
+                    <tr><th>回调状态</th><td>{{ '未回调' if order.notify_status == 0 else ('成功' if order.notify_status == 1 else '失败') }}</td></tr>
+                    {% if order.game_account %}<tr><th>游戏账号</th><td>{{ order.game_account }}</td></tr>{% endif %}
+                    {% if order.produce_account %}<tr><th>充值账号</th><td>{{ order.produce_account }}</td></tr>{% endif %}
+                    <tr><th>数量</th><td>{{ order.buy_num or order.quantity or '-' }}</td></tr>
+                    <tr><th>金额</th><td>{{ order.total_price or '-' }}</td></tr>
+                    <tr><th>创建时间</th><td>{{ order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else '-' }}</td></tr>
+                </table>
+            </div>
+        </div>
+
+        {% if order.card_info %}
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">卡密信息</div>
+            <div class="card-body">
+                <pre class="mb-0">{{ order.card_info }}</pre>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white">操作</div>
+            <div class="card-body">
+                {% if order.order_status in [0, 1] %}
+                {% if order.order_type == 1 %}
+                <form method="post" action="{{ url_for('admin.order_success', order_id=order.id) }}" class="mb-2">
+                    <button type="submit" class="btn btn-success w-100" onclick="return confirm('确认通知成功？')">✅ 通知成功（直充）</button>
+                </form>
+                {% else %}
+                <div class="mb-2">
+                    <label class="form-label">卡密JSON（数组格式）</label>
+                    <textarea name="card_info" id="card_info" class="form-control" rows="4" placeholder='[{"cardNo":"xxx","cardPass":"xxx"}]'></textarea>
+                </div>
+                <form method="post" action="{{ url_for('admin.order_send_card', order_id=order.id) }}" class="mb-2" id="card_form">
+                    <input type="hidden" name="card_info" id="card_info_hidden">
+                    <button type="button" class="btn btn-primary w-100" onclick="submitCard()">🃏 发送卡密</button>
+                </form>
+                {% endif %}
+                <form method="post" action="{{ url_for('admin.order_refund', order_id=order.id) }}">
+                    <button type="submit" class="btn btn-danger w-100" onclick="return confirm('确认通知退款？')">💸 通知退款</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function submitCard() {
+    var cardInfo = document.getElementById('card_info').value;
+    document.getElementById('card_info_hidden').value = cardInfo;
+    if (confirm('确认发送卡密？')) {
+        document.getElementById('card_form').submit();
+    }
+}
+</script>
+{% endblock %}
