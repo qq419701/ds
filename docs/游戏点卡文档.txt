@@ -1,0 +1,2159 @@
+京东游戏点卡平台
+
+服务接口规范说明文档
+1 概要
+1.1 目的
+京东商城具有自己的游戏点卡销售系统，为了给用户提供方便快捷体验，支持接入第三方充值平台为客户提供更好的服务。为了达成游戏点卡虚拟商品订单履约流程，各参与方大致的交互流程如下图1.1所示：
+
+ 
+
+图1.1 订单履约各方交互图
+
+要实现虚拟商品的售卖，三方平台会进行6个步骤：
+商家上架商品，具体操作在京麦商家平台操作，详细见附录4.5，特别注意商品属性的配置，配置错误将导致售卖过程无法进行3/5步骤，导致商品无法售卖；
+客户浏览商品后对商品进行下单、支付
+京东平台内游戏点卡售卖系统，会将客户下单信息（仅包含必要履约因素）通过接口发送给商家系统，由商家进行履约
+商家通过商家系统手动或自动对接受到的订单进行履约
+商家系统将订单履约结果（订单状态），告知京东平台内游戏点卡销售系统；若告知失败信息，京东平台游戏点卡销售系统将会自动发起给客户退款流程。此步骤极为重要，必须如实、及时反馈履约结果，否则将会引起客户投诉，影响店铺商品销售！！！
+客户从京东平台获取订单履约结果
+
+本文档核心作用帮助商家完成上述流程中3（用户下单信息告知商家）、5（订单履约结果告知），需要商家特按照京东游戏点卡接入接口规范提供接口给京东商城游戏点卡销售系统调用。
+
+
+
+名词解释
+京东平台-商家后台：商家签约入驻后才会获取平台(https://shop.jd.com/，京麦PC、移动客户端等)的操作账号,可以对店铺内的商品进行管理（上架、下架等），订单进行查看等。
+
+京东平台-游戏点卡销售系统：专门用于游戏、点卡、会员权益等pop虚拟商品辅助销售的系统，可按照业务为商家配置的接口，发送供商家履约最小订单信息；接受商家订单履约结果，并将订单履约结果展示给客户；
+
+商家系统：商家自行搭建的系统，可以托管在各种公有云平台，必须有固定的公网域名或ip，并保证稳定性，以便平台访问到。用于接受订单信息，并进行订单履约，例如自动调用外部其他系统进行充值、获取卡密等，最终将履约结果反馈给京东内游戏点卡销售系统。
+
+1.2接口交互说明（必读）
+1.2.1 直充/卡密业务简介京东虚拟充值业务流程分为直充和卡密两种流程。
+直充业务流程：用户提供账号信息，商家根据用户提供的账号信息进行充值；
+卡密业务流程：用户不提供账号信息，商家根据订单返回卡号卡密信息，用户根据卡号卡密信息自行充值。
+
+1.2.2 同步/异步业务简介
+在完成图1.1中第3/5步骤时，履约流程京东与商家直接的交互可以分为同步和异步流程。同步流程要求商家系统立即返回订单履约结果（充值结果），异步流程则可允许商家有一段时间去处理订单履约（充值或者生成卡密），但是会造成客户等待；
+同步流程：京东调用商家直充或者卡密接单接口，商家直接返回了充值结果。
+异步流程：京东调用商家直充或者卡密接单接口，商家返回订单充值中的状态，待商家侧业务处理完订单履约，调用京东侧提供的回调接口，主动通知京东订单充值结果，或者京东侧通过查询接口，获取订单履约结果。
+
+1.2.3 重点注意事项（必读）
+商家系统开发最小范围：接单接口和订单查询接口。为了更好的用户体验，对于直充类型同时可接入前置校验接口，下单前可校验用户充值账号是否有购买资格、充值账号是否输入错误等；
+商家调用回调接口可以主动即时通知京东侧订单履约结果，进而控制订单状态，若回调履约成功订单流转完成状态，若回调履约失败则会再次触发查询，查询结果为履约失败可实现触发订单退款操作；商家不调用回调接口，则订单状态的变更依赖京东侧轮询订单查询履约结果，轮询的订单范围为：下单时间在过去180天内履约中的订单，超过180天仍在履约中的将自动将订单拉失败（触发退款给用户）；
+接单平台开发语言不限，只有实现http接口即可；
+开发完成后，先发邮件（wangshirui.9@jd.com）获取密钥，密钥获取之后，登陆商家自行管理配置，其中查询订单接口和接单接口必须配置，后面如需变更只需自行变更即可，详情见2.6。
+     
+
+1.2.4 联调流程 
+
+1.3 交易流程介绍
+1.3.1 直冲交易流程 
+@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+
+
+actor 客户
+
+participant 京东
+participant 商家
+
+
+autonumber
+autonumber
+
+客户->京东: 下单
+activate 京东
+京东->客户: 下单成功
+deactivate 京东
+
+客户->京东: 支付订单
+activate 京东
+京东->京东: 支付成功
+京东->商家: 订单充值
+deactivate 京东
+activate 商家
+商家->商家: 商家充值
+商家-->京东: 返回充值结果/通知履约结果
+deactivate 商家
+activate 京东
+京东->京东: 订单成功/失败
+京东->京东: 商家货款结算/退款
+deactivate 京东
+
+
+
+@enduml
+1.3.2卡密交易流程@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+
+
+actor 客户
+
+participant 京东
+participant 商家
+
+
+autonumber
+autonumber
+
+客户->京东: 下单
+activate 京东
+京东->客户: 下单成功
+deactivate 京东
+
+客户->京东: 支付订单
+activate 京东
+京东->京东: 支付成功
+京东->商家: 订单充值
+deactivate 京东
+activate 商家
+商家->商家: 商家充值
+商家-->京东: 返回充值结果/通知履约结果
+deactivate 商家
+activate 京东
+京东->京东: 订单成功/失败
+京东->京东: 商家货款结算/退款
+deactivate 京东
+
+
+
+@enduml
+ 
+1.3.3 游戏售卖流程@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+
+
+actor 客户
+
+participant 京东
+participant 游戏售卖平台
+
+autonumber
+
+客户->京东: 选择游戏商品并选号
+activate 京东
+京东->游戏售卖平台: 跳转到小程序选择游戏账户生成tokenID
+activate 游戏售卖平台
+游戏售卖平台 -> 京东: 页面跳转结算页并附带tokenID
+京东->游戏售卖平台: 服务获取tokenID对应游戏信息及价格
+游戏售卖平台 -> 京东: 返回结果
+deactivate 游戏售卖平台
+京东->客户: 展示价格及选择游戏账户
+
+deactivate 京东
+
+客户->京东: 下单
+activate 京东
+京东-->游戏售卖平台: 获取tokenID对应游戏信息及价格
+activate 游戏售卖平台
+游戏售卖平台 --> 京东: 返回结果
+deactivate 游戏售卖平台
+京东->客户: 下单成功
+deactivate 京东
+
+客户->京东: 支付订单
+activate 京东
+京东->京东: 支付成功
+京东->游戏售卖平台: 订单充值并附带tokenID
+activate 游戏售卖平台
+游戏售卖平台->游戏售卖平台: 充值
+游戏售卖平台->京东: 返回账户密码
+deactivate 游戏售卖平台
+deactivate 京东
+
+游戏售卖平台-->京东: 回调成功/失败
+
+
+京东->京东: 商家货款结算/订单失败退款（超xx小时）
+activate 京东
+deactivate 京东
+
+
+
+
+
+@enduml
+1.4 接口说明1. 接口采用Http协议，京东商城游戏点卡系统向第三方充值平台发送请求时以POST方式提交数据，第三方充值平台向京东游戏点卡系统发送请求时，可采用POST或GET方式进行数据交互，字符编码UTF-8；
+2. 京东商城提供游戏区服信息,游戏品牌,skuId等编号和名称以便第三方充值系统做配置映射管理，具体内容请见游戏参数说明文档；
+3. 所有发起的请求和接受到请求，data字段的值是对业务数据base64编码后的值，base64编码前的内容为标准json格式，且尽量不要包含中文字符；
+4. 签名privatekey（秘钥）由京东提供一个32位的由数字和小写字母组成的字符串；签名privatekey是双方接口相互信任的基础，请妥善保管使用，避免泄露给第三方。
+5. 签名验证：如果某个变量没有值，那么该变量的key和value对将不出现在请求的URL和加密明文中，签名加密明文为
+key1=value1&key2=value2&...&privatekey, 其中，key1、key2等参数名称以字母升序排列，value为未进行url encode之前的原值,最好拼接分配的秘钥privatekey，合成的加密明文无空格，签名方式采用MD5；具体见附录4.3
+6.返回结果统一为Json格式。
+
+接口服务可用性要求如下，若达不到将影响大促预售等活动的准入：
+指标
+描述
+服务可用性
+不低于99.9% ，即每月的不可用时间不超过43.2分钟
+服务可用性 = ((服务月度总分钟数 - 服务不可用分钟数) / 服务月度总分钟数) × 100%
+连续5分钟以上服务无法使用，表示服务不可用（低于5分钟不计入不可用时间）
+服务性能
+接口未作特别说明时，tp99不超过1000毫秒，可承载tps不低于10，包括但不限于前置校接口验、接单接口、充值结果查询等接口服务
+运维响应时间
+出现服务故障后，商家技术运维团队需要30分钟内做出相应处理，并在1个小时内完成故障恢复
+
+2 商家系统实现接口以下接口是需要合作商家实现，提供给京东游戏点卡平台调用。包括充值接口，和订单查询接口；
+2.1 请求方式 
+2.2 提单校验接口2.2.1提单校验接口合作商家提供给京东用于提单前校验商品是否可售。
+性能要求：建议处理耗时平均控制在200ms内，最长不超过400ms。
+2.2.1.1请求消息体参数说明
+参数
+含义
+类型
+是否必填
+备注
+customerId
+合作商编号
+Long
+必填
+商家编号由京东商城提供。
+data
+业务数据
+String
+必填
+对json格式的业务数据进行base64编码后的值。
+timestamp
+当前时间戳
+String
+必填
+格式为
+yyyMMddHHmmss
+  4位年+2位月+2位日+2位时+2位分+2位秒
+sign
+MD5签名摘要
+String
+必填
+详见接口说明第5条
+version
+接口版本
+String
+
+该参数暂时不使用
+2.2.1.2业务数据 JSON的格式说明业务数据例子 (消息体中参数data为对该业务数据json串base64之后的值)，如下：
+
+data=base64（
+{
+    "pin": "zhangsan",
+    "buyNum": "10",
+    "totalPrice": "150",
+    "gameAccount": "游戏账号",
+    "permit": "",
+    "skuId": "1016892029",
+    "brandId": "1010000055",
+    "gameAccountType": {
+        "id": "51yx ",
+        "name": "神雕账号"
+    },
+    "gameArea": {
+        "id": "1",
+        "name": "电信一区（PVP）"
+    },
+    "gameServer": {
+        "id": "11",
+        "name": "傲视"
+    },
+    "chargeType": {
+        "id": "yuanbao",
+        "name": "元宝"
+    },
+    "features": [
+        {
+            "expand1": {
+                "id": "1",
+                "name": "名称1"
+            }
+        }
+    ],
+    "userIp": "127.0.0.1"
+}
+)
+
+业务参数各字段说明
+参数
+含义
+类型
+是否必填
+备注
+pin
+用户pin
+String
+必填
+下单用户pin
+buyNum
+购买数量
+Int
+必填
+如：10
+skuId
+skuId
+Long
+必填
+对应京东的商品skuId
+brandId
+品牌ID
+Long
+必填
+对应京东游戏品牌ID
+userIp
+用户ip地址
+String
+必填
+如：10.124.134.25
+totalPrice
+订单总价，商家应收款。cost_price*buyNum 
+Double
+必填
+如：140.25
+gameAccount
+
+游戏帐号
+String
+
+如：gitluochao
+permit
+通行证
+String
+
+如：魔兽世界的战网通行证（双账号的情况）
+gameAccountType
+账号类型
+Json格式字符串
+
+{“id”:”51yx”,”name”:”神雕账号”}
+chargeType
+充值类型
+Json格式字符串
+
+{“id”:”Yuanbao”,”name”:” 元宝”}
+gameArea
+游戏区
+JSON格式字符串
+
+{“id”:”298”,”name”:” 61区巴山蜀水”}
+gameServer
+游戏所在服
+JSON格式字符串
+
+{“id”:” 10”,”name”:”巴蜀万里”}
+2.2.1.3 合作商系统返回数据说明返回数据例子
+校验成功
+{
+  "retCode": "100", 
+  "retMessage": "成功",
+   "data": base64({
+        "status": "0
+    })
+ }
+失败校验未通过：
+  {
+	 "retCode": "111", 
+	"retMessage": "校验失败",
+  }
+
+
+返回参数说明
+参数
+含义
+类型
+是否必填
+备注
+retCode
+返回码
+String
+必填
+100:合作商家接口成功，其他失败详细见返回码信息
+retMessage
+返回接口说明
+String
+必填
+成功返回成功，若是失败则返回错误信息
+data
+返回结果数据
+String
+
+对json格式的业务数据进行base64编码后的值。
+
+
+
+
+
+data字段json格式说明
+参数
+含义
+类型
+是否必填
+备注
+status
+商品可售状态
+Int
+必填
+返回可售状态：0 表示可售卖，其他表示不可售卖
+2.3 直冲接口地址2.3.1 直冲接单接口合作商提供京东用于直充。
+2.3.1.1请求消息体参数说明参数
+含义
+类型
+是否必填
+备注
+customerId
+商家编号
+Long
+必填
+商家编号由京东商城提供
+data
+业务数据
+String
+必填
+对json格式的业务数据进行base64编码后的值。
+timestamp
+当前时间戳
+String
+必填
+格式为
+yyyMMddHHmmss 4位年+2位月+2位日+2位时+2位分+2位秒
+sign
+MD5签名摘要
+String
+必填
+详见接口说明第5条
+version
+接口版本
+String
+
+该参数暂时不使用
+2.3.1.2业务数据JSON格式说明业务数据例子 (消息体中参数data为对该业务数据json串base64之后的值)
+base64({
+"orderId": "203632092",
+  "pin": "zhangsan",
+"buyNum": "10",
+"totalPrice": "150",
+"gameAccount": "游戏账号",
+"permit": "",
+"skuId": "10168 92029",
+"brandId": "1010000055",
+"gameAccountType": {
+"id": "51yx ",
+"name": "神雕账号"
+},
+"gameArea": {
+"id": "1",
+"name": "电信一区（PVP）"
+},
+"gameServer": {
+"id": "11",
+"name": "傲视"
+},
+"chargeType": {
+"id": "yuanbao",
+"name": "元宝"
+},
+"features": [
+{
+"expand1": {
+"id": "1",
+"name": "名称1"
+}
+}
+],
+
+   "userIp": "127.0.0.1"
+})
+业务参数各字段说明
+参数
+含义
+类型
+是否必填
+备注
+orderId
+京东订单号
+Long
+必填
+客户下单在京东生成的京东订单号9999900003
+pin
+用户pin
+String
+
+下单用户pin
+buyNum
+购买数量
+Int
+必填
+如：10
+skuId
+skuId
+Long
+必填
+对应京东的商品skuId
+brandId
+品牌ID
+Long
+必填
+对应京东游戏品牌ID
+userIp
+用户ip地址
+String
+
+如：10.124.134.25
+totalPrice
+订单总价，商家应收款。
+Double
+必填
+如：140.25
+jingBean
+使用京豆金额
+Double
+非必填
+如：40.25
+coupons
+使用优惠券金额
+Double
+非必填
+如：40.25
+gameAccount
+
+游戏帐号
+String
+必填
+如：gitluochao
+permit
+通行证
+String
+
+如：魔兽世界的战网通行证（双账号的情况）
+gameAccountType
+账号类型
+Json格式字符串
+
+{“id”:”51yx”,”name”:”神雕账号”}
+chargeType
+充值类型
+Json格式字符串
+
+{“id”:”Yuanbao”,”name”:” 元宝”}
+gameArea
+游戏区
+JSON格式字符串
+
+{“id”:”298”,”name”:” 61区巴山蜀水”}
+gameServer
+游戏所在服
+JSON格式字符串
+
+{“id”:” 10”,”name”:”巴蜀万里”}
+address
+收货地址
+JSON格式字符串
+
+{“name”:” 收件人名”,”address”:"地址",”phone”:"手机号"
+type
+充值类型
+Int
+非必填
+0或者空都是正常订单充值，1为赠品权益充值；为1时rights不为空必填
+rights
+Rights赠品权益账户信息
+JSON数组
+非必填
+[{key:value},{},{}]
+features
+JSON格式字符串
+String
+Json串
+K/V类型的json串
+outId
+商品在外部商家的编号
+String
+
+“test”
+promotionPrice
+单品等促销（满减、立减等）后优惠后价格
+String
+非必填
+自动续费场景下，为命中品牌身份标签的价格；
+Rights权益账户信息说明
+参数
+含义
+类型
+是否必填
+备注
+rightsId
+赠品权益单号
+Long
+必填
+赠品充值权益单号
+buyNum
+购买数量
+Int
+必填
+如：10
+skuId
+skuId
+Long
+否
+对应京东的商品skuId
+rightsType
+权益类型
+Int
+必填
+见权益类型信息
+account
+赠品权益充值账号
+String
+必填
+权益到账账号，可能为手机号、QQ号等
+
+2.3.1.3 合作商系统返回数据说明返回数据例子
+成功
+{
+"retCode": "100",
+"retMessage": "成功"
+}
+失败：
+{
+"retCode": "111",
+    "retMessage": "订单号不允许重复"
+}
+返回参数说明
+参数
+含义
+类型
+是否必填
+备注
+retCode
+返回码
+String
+必填
+100:合作商家系统接受订单成功，待充值
+其他失败详细见返回码信息
+retMessage
+返回接口说明
+String
+必填
+成功返回成功，若是失败则返回错误信息
+2.3.2 直冲订单查询接口合作商家提供给京东用于订单状态查询。
+2.3.2.1请求消息体参数说明参数
+含义
+类型
+是否必填
+备注
+customerId
+合作商编号
+Long
+必填
+商家编号由京东商城提供。
+data
+业务数据
+String
+必填
+对json格式的业务数据进行base64编码后的值。
+timestamp
+当前时间戳
+String
+必填
+格式为
+yyyMMddHHmmss
+  4位年+2位月+2位日+2位时+2位分+2位秒
+sign
+MD5签名摘要
+String
+必填
+详见接口说明第5条
+version
+接口版本
+String
+
+该参数暂时不使用
+2.3.2.2业务数据JSON的格式说明业务数据例子 (消息体中参数data为对该业务数据json串base64之后的值)
+{"orderId ":"1000005565" } 进行处理，data=base64({"orderId
+":"1000005565" })
+业务参数字段说明
+参数
+含义
+类型
+是否必填
+备注
+orderId
+京东订单号
+Long
+必填
+客户下单在京东生成的京东订单号9999900003
+2.3.2.3 合作商返回数据说明返回数据例子采用base64编码
+充值成功：
+{
+"retCode":"100",
+"retMessage": "查询成功",        
+"data":base64({"orderStatus":0})
+}
+充值失败：
+{
+"retCode":"112",
+"retMessage": "账号余额不足"
+}
+返回参数说明
+参数
+含义
+类型
+是否必填
+备注
+retCode
+返回码
+String
+必填
+100:查询订单成功，
+其他失败详细见4.1返回码信息
+retMessage
+返回接口说明
+long
+必填
+成功返回查询成功，若是失败则返回错误信息
+data
+返回结果数据
+String
+
+base64({"orderStatus":0})
+data值为base64编码之后的值，
+data字段json格式说明
+参数
+含义
+类型
+是否必填
+备注
+orderStatus
+订单状态
+Int
+必填
+返回订单的充值状态：0 表示履约充值成功，1 表示履约充值中
+type
+充值类型
+Int
+非必填
+0或者空都是正常订单充值，1为权益充值
+rightsId
+权益ID
+String
+Type=1必填
+充值权益单号
+2.4卡密接口地址2.4.1卡密接单接口合作商提供京东用于获取卡密下单。
+2.4.1.1请求消息体参数说明参数
+含义
+类型
+是否必填
+备注
+customerId
+商家编号
+Long
+必填
+商家编号由京东商城提供
+data
+业务数据
+String
+必填
+对json格式的业务数据进行base64编码后的值。
+timestamp
+当前时间戳
+String
+必填
+格式为
+yyyMMddHHmmss 4位年+2位月+2位日+2位时+2位分+2位秒
+sign
+MD5签名摘要
+String
+必填
+详见接口说明第5条
+version
+接口版本
+String
+
+该参数暂时不使用
+2.4.1.2业务数据JSON格式说明业务数据例子 (消息体中参数data为对该业务数据json串base64之后的值)
+base64({
+"orderId": "203632092",
+"pin": "zhangsan",
+"brandId": "52471",
+"skuId": "1100491280",
+"buyNum": "10",
+"totalPrice": "150",
+"features": [
+{
+"expand1": {
+"id": "1",
+"name": "名称1"
+}
+}
+],
+   "userIp": "127.0.0.1",
+  "tokenId": "xxxxx"
+})
+
+业务参数各字段说明
+参数
+含义
+类型
+是否必填
+备注
+orderId
+京东订单号
+Long
+必填
+客户下单在京东生成的京东订单号9999900003
+pin
+用户pin
+String
+选填
+用户下单pin
+buyNum
+购买数量
+Int
+必填
+如：10
+totalPrice
+订单总价，商家应收款。
+Double
+必填
+如：140.25
+skuId
+skuId
+Long
+必填
+对应京东的商品skuId
+brandId
+品牌ID
+Long
+必填
+对应京东游戏品牌ID
+facePrice
+面值
+Long
+选填
+商品面值
+sourceType
+订单来源渠道
+Int
+必填
+订单来源渠道：0：主站；1：惊喜
+features
+JSON格式字符串
+
+Json串
+K/V类型的json串,扩展字段
+userIp
+用户ip地址
+String
+
+如：10.124.134.25
+outId
+外部商家商品编号
+String
+
+商家在京麦平台发布商品时填写的商家侧商品ID，方便标记商家侧商品id
+tokenId
+游戏售卖唯一ID
+String
+游戏账号售卖的订单必填，其它非必填
+游戏账号售卖平台生产的唯一ID，标记用户选择某个账号信息
+2.4.1.2.1扩展字段JSON格式说明【目前只供itunes商家使用】将所有字段序列化为json字符串，然后对json进行Aes加密，以itunesFeature作为key，json加密后的字符串为值，组成features。
+features字段示例
+{
+"itunesFeature": Aes (
+{
+"userPin": "xxx",
+"phoneNum": "136xxxxxxxx",
+"email": "xxx@163.com",
+"address": "北京市",
+"phoneNumVerified": "1",
+"realNameVerified": "1",
+"payOrderIpRecorded": "1"
+}
+)
+}
+各字段说明
+参数
+含义
+类型
+是否必填
+备注
+userPin
+用户Pin
+String
+必填
+
+phoneNum
+联系电话
+String
+非必填
+
+email
+联系邮件
+String
+非必填
+
+address
+联系地址
+String
+非必填
+
+phoneNumVerified
+是否已完成手机验证
+Int
+必填
+0否、1是
+realNameVerified
+是否已经完成实名认证
+Int
+非必填
+值：空、0否、1是
+payOrderIpRecorded
+是否已经记录客户支付订单时的IP
+Int
+必填
+0否、1是
+测试环境加密key
+0789e8410e0b4ece99141aaf7273fda6
+2.4.1.3 合作商系统返回数据说明返回数据例子
+1.整体结果示例
+成功
+{
+    "cardinfos": [
+        {
+            "cardno": "DXFD-XCV-000000814",
+            "cardpass": "193-4343-32322814",
+            "expiretime": "2008-12-01"
+        },
+        {
+            "cardno": "DXFD-XCV-000000814",
+            "cardpass": "193-4343-32322814",
+            "expiretime": "2008-12-01"
+        }
+    ]
+}
+失败：
+{
+  "retCode": "107", 
+  "retMessage": "没有对应商品"
+}
+
+2.卡密组示例
+[
+  {
+    "cardno": "DXFD-XCV-000000814", 
+    "cardpass": "193-4343-32322814", 
+    "expiretime": "2008-12-01"
+  }, 
+  {
+    "cardno": "DXFD-XCV-000000814", 
+    "cardpass": "193-4343-32322814", 
+    "expiretime": "2008-12-01"
+  }
+]
+
+返回参数说明
+参数
+含义
+类型
+是否必填
+备注
+retCode
+返回码
+String
+必填
+100:合作商家系统创建订单成功
+其他失败详细见返回码信息
+retMessage
+返回接口说明
+String
+必填
+成功返回成功，若是失败则返回错误信息
+data
+返回结果数据
+String
+
+同步卡密购买：
+base64({“cardinfos”:[]})
+需要用base64对json串进行编码。Json包括的元素
+cardinfos(卡密组)
+异步卡密购买：
+不需要传递data 或data:”” (空字符串)
+data字段 base64编码前Json格式说明
+参数
+含义
+类型
+是否必填
+备注
+cardinfos
+返回卡密组信息
+Json数组
+必填
+订单成功后，返回卡密组，如果采取异步通知方式，此值为空
+cardinfos json元素说明
+参数
+含义
+类型
+是否必填
+备注
+cardno
+卡密卡号
+String
+必填
+订单成功后，返回卡号：DXFD-XCV-000000814
+cardpass
+卡密密码
+String
+必填
+订单成功，返回卡密密码：
+193-4343-32322814
+expiretime
+卡密过期时间
+String
+
+如：2013-12-01
+2.4.2 卡密订单查询接口合作商家提供给京东用于订单查询。如果下单成功，同时返回卡密信息。
+2.4.2.1请求消息体参数说明参数
+含义
+类型
+是否必填
+备注
+customerId
+合作商编号
+Long
+必填
+商家编号由京东商城提供。
+data
+业务数据
+String
+必填
+对json格式的业务数据进行base64编码后的值。
+timestamp
+当前时间戳
+String
+必填
+格式为
+yyyMMddHHmmss
+  4位年+2位月+2位日+2位时+2位分+2位秒
+sign
+MD5签名摘要
+String
+必填
+
+version
+接口版本
+String
+
+该参数暂时不使用
+2.4.2.2业务数据 JSON的格式说明业务数据例子 (消息体中参数data为对该业务数据json串base64之后的值 {"orderId ":"1000005565" }  data:=base64({"orderId ":"1000005565" })
+业务参数字段说明
+参数
+含义
+类型
+是否必填
+备注
+orderId
+京东订单号
+Long
+必填
+客户下单在京东生成的京东订单号9999900003
+2.4.2.3 合作商返回数据说明返回数据例子，成功示例:
+{
+    "retCode": "100",
+    "retMessage": "充值成功",
+    "data": base64(
+           {
+            "orderStatus": "0",
+            "cardinfos": [
+                {
+                    "cardno": "DXFD-XCV-000000814",
+                    "cardpass": "193-4343-32322814",
+                    "expiretime": "2008-12-01"
+                },
+                {
+                    "cardno": "DXFD-XCV-000000814",
+                    "cardpass": "193-4343-32322814",
+                    "expiretime": "2008-12-01"
+                }
+               ]
+            }       
+    )
+}
+失败示例：
+{
+    "retCode": "107",
+    "retMessage": "没有对应商品"
+}
+返回参数说明
+参数
+含义
+类型
+是否必填
+备注
+retCode
+返回码
+string
+必填
+100:查询订单成功，
+其他失败详细见返回码信息
+retMessage
+返回接口说明
+String
+必填
+成功返回查询成功，若是失败则返回错误信息
+data
+返回结果数据
+String
+
+对json格式的业务数据进行base64编码后的值。
+data字段json格式说明
+参数
+含义
+类型
+是否必填
+备注
+orderStatus
+订单状态
+Int
+必填
+返回订单的充值状态：0 表示购买成功，2 表示购买失败
+cardinfos
+订单成功，返回的卡密组
+JSON数组
+卡密类型必填
+订单购买成功，返回卡密组。
+卡密类型必填，缺失卡密将导致订单状态无法流转到成功；
+购买数量为N件时，确保所有N个卡密均完备后整体返回
+cardinfos json元素说明
+参数
+含义
+类型
+是否必填
+备注
+cardno
+卡密卡号
+String
+必填
+订单成功时返回的卡号，长度约束：不得大于200字节;
+不支持汉字等字符，只支持英文字母、数字、-、_组合
+cardpass
+卡密密码
+String
+必填
+订单成功时返回的卡密，长度约束：不得大于5000字节;
+只支持英文字母、数字、-、_等ASCII码组合
+expiretime
+卡密过期时间
+String
+
+如：2013-12-01
+2.5 身份价接口2.5.1身份价接口合作商家提供给京东用于校验账户是否为品牌新人、360天召回新人等身份标签，对于连包续费商品，命中身份标签的用户可享受商家或运营配置的优惠价格。具体优惠配置商家可通过4.7中【自动续费商品管理】进行配置。
+2.5.1.1请求消息体参数说明参数
+含义
+类型
+是否必填
+备注
+data
+业务数据
+String
+必填
+对json格式的业务数据进行base64编码后的值。
+timestamp
+当前时间戳
+String
+必填
+格式为
+yyyMMddHHmmss
+  4位年+2位月+2位日+2位时+2位分+2位秒
+sign
+MD5签名摘要
+String
+必填
+
+customerId
+商家编号
+Long
+必填
+商家编号由京东商城提供
+version
+接口版本
+String
+
+该参数暂时不使用
+
+
+
+
+
+
+2.5.1.2业务数据 JSON的格式说明业务数据例子 (消息体中参数data为对该业务数据json串base64之后的值)
+{"brandType":"1","gameAccount":"18102212033","userIp":"127.0.0.1"}data:=base64({"brandType":"1","gameAccount":"18102212033","userIp":"127.0.0.1"}
+)
+业务参数字段说明
+base64({
+  "brandType": "1",
+  "gameAccount": "账户",
+   "userIp": "127.0.0.1"
+})
+业务参数各字段说明
+参数
+含义
+类型
+是否必填
+备注
+userIp
+用户ip地址
+String
+否
+如：10.124.134.25
+brandType
+品牌类型
+int
+否
+如：101 品牌类信息
+gameAccount
+
+充值帐号
+String
+必填
+充值账号，手机号、通行证、QQ号等
+skuId
+商品id
+Long
+否
+京东分配商品id，对于在商家在京麦平台创建的优惠活动，该字段必传
+outId
+商品在外部商家的编号
+String
+否
+京麦平台发布商品时，填写的外部商品编码
+promoActivities
+sku下配置的身份价优惠活动列表
+Array<PromoActivity>
+否
+连包商品多期身份优惠时，传递配置的优惠活动（未命中活动，该字段不传）
+
+promoActivities数组字段内，每个元素PromoActivity结构如下：
+参数
+含义
+类型
+是否必填
+备注
+identityId
+品牌身份标签id
+String
+是
+1，具体取值见4.7中【自动续费商品管理】中配置的身份标签id
+
+2.5.1.3 合作商系统返回数据说明返回数据例子
+{
+"retCode": "100",
+"retMessage": "成功",
+"data": base64({
+"status": "1"
+})
+}
+失败：
+{
+"retCode": "111",
+    "retMessage": "校验失败",
+}
+返回参数说明
+参数
+含义
+类型
+是否必填
+备注
+retCode
+返回码
+String
+必填
+100:合作商家接口成功，其他失败详细见返回码信息
+retMessage
+返回接口说明
+String
+必填
+成功返回成功，若是失败则返回错误信息
+data
+返回结果数据
+String
+
+对json格式的业务数据进行base64编码后的值。
+
+
+
+
+
+data字段json格式说明
+参数
+含义
+类型
+是否必填
+备注
+status
+身份标签
+String
+必填
+返回身份标签id：
+0 表示未命中任何身份，
+1 品牌新人身份；
+后续增加其它身份标签，由京东运营侧配置方可生效
+备注：status字段取值含义需要与下图（4.7中【自动续费商品管理-新建活动】）中身份标签下拉选择含义一致，否则将导致命中错误活动。
+
+
+2.6 获取游戏账户信息2.6.1获取游戏账户接口(仅用于选号模式京东小程序游戏售卖)合作商家提供给京东用于查询用户生成提单所需要信息，如价格，图片，账户信息，文案，需提供30天查询有效期。
+请求超时：200ms。
+超时后默认无法提单
+2.6.1.1请求消息体参数说明参数
+含义
+类型
+是否必填
+备注
+data
+业务数据
+String
+必填
+对json格式的业务数据进行base64编码后的值。
+customerId
+合作商编号
+Long
+必填
+商家编号由京东商城提供。
+timestamp
+当前时间戳
+String
+必填
+格式为
+yyyMMddHHmmss
+  4位年+2位月+2位日+2位时+2位分+2位秒
+sign
+MD5签名摘要
+String
+必填
+
+version
+接口版本
+String
+
+该参数暂时不使用
+
+
+
+
+
+
+2.6.1.2业务数据 JSON的格式说明业务数据例子 (消息体中参数data为对该业务数据json串base64之后的值)
+{"tokenId":"xxx","skuId":"xxxxxx","userIp":"127.0.0.1"}
+data:=base64({"tokenId":"xxx","skuId":"xxxxxx","userIp":"127.0.0.1"}
+)
+业务参数各字段说明
+参数
+含义
+类型
+是否必填
+备注
+userIp
+用户ip地址
+String
+否
+如：10.124.134.25
+tokenId
+唯一ID
+String
+必填
+如：xxxxx， 合作商家生成，保证唯一性，长度不超过32位
+skuId
+商品id
+String
+必填
+京东分配商品id，对于在商家在京麦平台创建的优惠活动，该字段必传
+outId
+商品在外部商家的编号
+String
+否
+京麦平台发布商品时，填写的外部商品编码
+
+2.6.1.3 合作商系统返回数据说明数据示例说明
+{
+    "gameName":"王者荣耀",
+    "accountNumber":"12312312"
+    "accountDesc":"邮箱未绑定xxxxx",
+    "accountInformations":[
+        {
+            "childAccountInformation":[
+                {
+                    "imageUrls":[
+                        "https://xxxx.png",
+                        "https://xxx.png"
+                    ],
+                    "title":"星级"
+                },
+                {
+                    "imageUrls":[
+                        "https://xxxx.png",
+                        "https://xxx.png"
+                    ],
+                    "title":"元素"
+                }
+            ],
+            "title":"角色"
+        },
+        {
+            "childAccountInformation":[
+                {
+                    "imageUrls":[
+                        "https://xxxx.png",
+                        "https://xxx.png"
+                    ],
+                    "title":"星级"
+                }
+            ],
+            "title":"武器"
+        }
+    ],
+    "basicInformation":[
+        {
+            "title":"等级",
+            "value":"20"
+        }
+    ],
+    "gameImageUrls":[
+        {
+            "imageUrls":[
+                "https://xxxx.png",
+                "https://xxx.png"
+            ],
+            "title":"首图"
+        },
+        {
+            "imageUrls":[
+                "https://xxxx.png",
+                "https://xxx.png"
+            ],
+            "title":"图片游戏"
+        }
+    ],
+    "price":"12.3"
+}
+
+返回参数说明
+参数
+含义
+类型
+是否必填
+备注
+retCode
+返回码
+String
+必填
+100:合作商家接口成功，其他失败详细见返回码信息
+retMessage
+返回接口说明
+String
+必填
+成功返回成功，若是失败则返回错误信息
+data
+返回结果数据
+String
+
+对json格式的业务数据进行base64编码后的值。
+
+
+
+
+
+data字段json格式说明
+参数
+含义
+类型
+是否必填
+备注
+price
+当前售卖价格
+String
+必填
+返回选择游戏售卖价格
+用户支付价格
+accountDesc
+游戏账户描述汇总
+String
+非必填
+用于展示用户选择游戏汇总信息
+gameName
+游戏名称
+String
+必填
+游戏名称
+accountNumber
+账号编号
+String
+必填
+账户编号
+gameImageUrls
+游戏截图
+List<AccountInformation>
+必填
+游戏截图
+basicInformation
+游戏基本信息
+List<BasicInformation>
+必填
+选择游戏基本信息
+accountInformation
+账号信息
+List<AccountInformation>
+必填
+账户信息
+BasicInformation字段说明
+参数
+含义
+类型
+是否必填
+备注
+title
+文字描述标题 
+String
+必填
+如：游戏区
+value
+用户选择游戏文字描述集合
+String
+必填
+如：电一区
+
+AccountInformation字段说明
+参数
+含义
+类型
+是否必填
+备注
+title
+标题 
+String
+必填
+如 ：角色
+childAccountInformations
+子集图片信息
+List<AccountInformation>
+非必填
+
+imageUrls
+游戏截图
+List<String>
+非必填
+链接格式必须以png jpg  jpeg 结尾格式且HTTPS公网可访问链接
+
+3 京东平台提供的接口3.1 请求方式 
+3.2 直冲回调接口回调接口地址：
+https://card.jd.com/api/gameApi.action直冲充值结果通知接口正式环境
+https://card-pre.jd.com/api/gameApi.action 直冲充值结果通知接口测试环境
+http请求方式：GET或POST，POST时，body按照form表单格式传递
+customerId=14156143&data=eyJvcmRlcklkIjoiMzAxMTg5NzE4OTI4Iiwib3JkZXJTdGF0dXMiOiIwIn0%3D&sign=23a7e8bf1b4288fd7bbb24cc0cb12430×tamp=20241224134818
+3.2.1 直冲充值结果通知接口该接口由京东提供给合作商调用，用于合作商家通知京东订单的充值结果。
+3.2.1.1请求消息体参数说明参数
+含义
+类型
+是否必填
+备注
+customerId
+合作商编号
+Long
+必填
+商家编号由京东商城提供。
+data
+业务数据
+String
+必填
+对json格式的业务数据进行base64编码后的值。由于历史原因base64编码时字符用gbk编码，否则中文无法正确解析。
+timestamp
+当前时间戳
+String
+必填
+格式为
+yyyMMddHHmmss
+  4位年+2位月+2位日+2位时+2位分+2位秒
+sign
+MD5签名摘要
+String
+必填
+
+version
+接口版本
+String
+
+该参数暂时不使用
+
+
+
+
+
+3.2.1.2业务数据JSON格式说明业务数据例子 (消息体中参数data为对该业务数据json串base64之后的值)，data=base64({"orderId":"301189718928","orderStatus":"0"})，由于历史原因base64编码时字符用gbk编码，否则中文无法正确解析,最终示例如下：
+业务参数字段说明
+参数
+含义
+类型
+是否必填
+备注
+orderId
+京东订单号
+Long
+必填
+客户下单在京东生成的京东订单号9999900003
+orderStatus
+订单充值状态
+Int
+必填
+返回订单的充值状态：0 表示充值成功，1 表示履约充值中，其他见订单状态信息表
+type
+充值类型
+Int
+非必填
+0或者空都是正常订单充值，1为赠品权益充值
+rightsId
+权益ID
+String
+Type=1必填
+充值赠品权益单号
+failedCode
+订单履约失败code
+Int
+orderStatus=2订单失败时必填
+具体见：与商家交互错误码请求正确赋值，将会展示给用户
+failedReason
+订单履约失败原因
+String
+orderStatus=2订单失败时必填
+请求正确赋值，将会展示给用户；100个字符（30个汉字）内；
+3.2.1.3 京东返回数据说明返回数据例子
+成功：
+{
+    "retCode": "100",
+    "retMessage": "接收成功"
+}
+
+失败：
+{
+    "retCode": "104",
+    "retMessage": "传入的参数有误"
+}
+
+
+返回参数说明
+参数
+含义
+类型
+是否必填
+备注
+retCode
+返回码
+String
+必填
+100:接受成功
+其他失败详细见返回码信息
+retMessage
+返回接口说明
+String
+必填
+成功返回接收成功，若是失败则返回错误信息
+3.3 卡密回调接口回调接口地址：
+https://card.jd.com/api/cardApi.action卡密充值结果通知接口正式环境
+请求示例：
+https://card.jd.com/api/cardApi.action?customerId=123&data=eyJicmFuZElkIjoiNTI0MzgifQ==&timestamp=20131103010112&sign=240f339630818097dbfcf4cf0b1eacc5
+3.3.1 异步卡密充值结果通知接口该接口由京东提供给合作商调用，用于合作商家通知京东订单的充值结果。
+http请求方式：GET或POST，POST时，body按照form表单格式传递
+3.3.1.1请求消息体参数说明参数
+含义
+类型
+是否必填
+备注
+customerId
+合作商编号
+Long
+必填
+商家编号由京东商城提供。
+data
+业务数据
+String
+必填
+对json格式的业务数据进行base64编码后的值。由于历史原因base64编码时字符用gbk编码，否则中文无法正确解析。
+timestamp
+当前时间戳
+String
+必填
+格式为
+yyyMMddHHmmss
+  4位年+2位月+2位日+2位时+2位分+2位秒
+sign
+MD5签名摘要
+String
+必填
+
+version
+接口版本
+String
+
+该参数暂时不使用
+
+
+
+
+
+3.3.1.2业务数据JSON格式说明业务数据例子 (消息体中参数data为对该业务数据json串base64之后的值，由于历史原因base64编码时字符用gbk编码，否则中文无法正确解析)
+{
+"orderId":"1000005565",
+"orderStatus":"0"，
+"cardinfos": [
+{
+"cardno": "DXFD-XCV-000000814",
+"cardpass": "193-4343-32322814",
+"expiretime": "2008-12-01"
+},
+{
+"cardno": "DXFD-XCV-000000814",
+"cardpass": "193-4343-32322814",
+"expiretime": "2008-12-01"
+}
+]
+
+} 
+业务参数字段说明
+参数
+含义
+类型
+是否必填
+备注
+orderId
+京东订单号
+Long
+必填
+客户下单在京东生成的京东订单号9999900003
+orderStatus
+订单充值状态
+Int
+必填
+返回订单的充值状态：0 表示充值成功，其他见4.1订单状态信息表
+cardinfos
+订单成功，返回的卡密组
+JSON数组
+卡密订单必填
+订单购买成功，返回卡密组。
+卡密类型必填，缺失卡密将导致订单状态无法流转到成功；
+购买数量为N件时，确保所有N个卡密均完备后整体返回
+failedCode
+订单履约失败code
+Int
+orderStatus=2订单失败时必填
+具体见：与商家交互错误码请求正确赋值，将会展示给用户
+failedReason
+订单履约失败原因
+String
+orderStatus=2订单失败时必填
+请求正确赋值，将会展示给用户;100个字符（30个汉字）内；
+cardinfos json元素说明
+参数
+含义
+类型
+是否必填
+备注
+cardno
+卡密卡号
+String
+必填
+订单成功后，返回卡号：DXFD-XCV-000000814
+长度约束：不得大于200字节内
+不支持汉字等字符，只支持英文字母、数字、-、_组合
+cardpass
+卡密密码
+String
+必填
+订单成功，返回卡密密码，例如：
+193-4343-32322814
+长度约束：不得大于5000字节;
+只支持英文字母、数字、-、_等ASCII码组合
+expiretime
+卡密过期时间
+String
+
+如：2013-12-01
+3.3.1.3 京东返回数据说明返回数据例子
+成功：
+{
+    "retCode": "100",
+    "retMessage": "接收成功"
+}
+
+失败：
+{
+"retCode": "104",
+"retMessage": "传入的参数有误"
+}
+
+返回参数说明
+参数
+含义
+类型
+是否必填
+备注
+retCode
+返回码
+String
+必填
+100:接受成功
+其他失败详细见4.2 返回码信息
+retMessage
+返回接口说明
+String
+必填
+成功返回接收成功，若是失败则返回错误信息
+4附表4.1 订单状态信息代码
+信息
+0
+充值成功
+1
+充值中
+2
+充值失败
+4.2 返回码信息 代码
+信息
+备注
+101
+订单不存在
+
+102
+订单号不允许重复
+
+103
+该游戏区服不存在或者区服已暂停
+
+104
+传入的参数有误
+
+105
+IP地址不符合要求
+[重试]
+106
+验证摘要串验证失败
+[重试]
+107
+没有对应商品
+
+108
+数据库繁忙，请稍后重试
+[重试]
+109
+本商品不可销售
+
+110
+库存不足
+[重试]
+111
+商品价钱不一致
+
+112
+账户余额不足
+
+113
+角色或账号不存在
+
+114
+角色或账号验证失败
+
+115
+游戏品牌不存在
+
+116
+充值帐户输入错误，请输入正确的{账号}
+{账号} 占位符20个汉字内，例如：手机号、微信号、QQ号等
+117
+账号不匹配{xx身份}身份要求
+{xx身份} 占位符20个汉字内，例如：学生、新学生、连包新人等
+118
+账号达到最大购买次数限制
+
+119
+账号被风控
+
+120
+账号被封停
+
+121
+无该产品的购买资格，{xx原因}
+{原因}  占位符20个汉字内，例如：不符合活动资格、已是黄金会员、在网时长不足等
+122
+账号转换映射失败
+针对有账号转换场景，例如手机号查询绑定的品牌方账号
+123
+品牌侧下单失败
+代理商调用品牌方下单失败
+124
+非有效价格
+
+999
+系统错误
+[重试]
+1000
+调用品牌方超时
+[重试] 接单接口、查询履约结果时可重试
+更多详见：与商家交互错误码，因错误原因会展示在失败订单详情页面上，若错误码有未覆盖到的场景，请联系京东侧增加。
+其中，对于订单履约结果查询接口，备注有[重试] 标示的，系统会进行重试查询订单履约结果（充值、卡密生产），其他非100的无重试标记的将会触发退款。
+
+4.3 品牌类型信息代码
+信息
+1001
+爱奇艺
+1002
+腾讯视频
+1003
+Keep
+1004
+优酷视频
+1005
+哔哩哔哩
+1006
+芒果
+1007
+喜马拉雅
+1008
+酷狗音乐
+1009
+QQ音乐
+1010
+网易音乐
+
+备注：更多品牌代码，可咨询运营侧。
+
+4.4 权益类型信息代码
+信息
+1
+京东Plus会员权益
+
+4.5 签名例子sign=md5(customerId=10817&data=base64(data)&timestamp=20120424165458&privateKey)
+
+python版本示例：
+import hashlib
+
+
+def gensign(private_key, param_dict):
+  # param_dict按照key排序，拼接签名计算的字符串
+  param_urls = []
+  for key in sorted(param_dict):
+    # print("%s: %s" % (key,param_dict[key]))
+    param_urls.append(key + "=" + str(param_dict[key]))
+
+
+  param_urls.append(private_key)
+  param_url_str = "&".join(param_urls)
+  print(param_url_str)
+
+  # 计算md5签名
+  md5lib = hashlib.md5()
+  md5lib.update(param_url_str.encode('utf-8'))
+  return md5lib.hexdigest()
+
+
+# 使用示例
+
+dict_param = {
+  "customerId":
+    1010000055,
+  "data": "ewogICAgIm9yZGVySWQiOiAiMjAzNjMyMDkyIiwKICAgICJwaW4iOiAiemhhbmdzYW4iLAogICAgImJ1eU51bSI6ICIxMCIsCiAgICAidG90YWxQcmljZSI6ICIxNTAiLAogICAgImdhbWVBY2NvdW50IjogIua4uOaIj+i0puWPtyIsCiAgICAicGVybWl0IjogIiIsCiAgICAic2t1SWQiOiAiMTAxNjg5MjAyOSIsCiAgICAiYnJhbmRJZCI6ICIxMDEwMDAwMDU1Igp",
+  "timestamp": "20220618121212",
+
+}
+
+md5str = gensign("1888bc29f89f9e19e7ff8c788ba5fc0c", dict_param)
+
+print("签名结果：" + md5str)
+
+php版本示例：
+<?php
+/*
+计算接口md5签名
+$private_key 私匙
+$param_array 关联数组，接口请求参数
+*/
+function gensign($private_key,
+$param_array) {
+	ksort($param_array);
+	$p_str_array=array();
+	foreach
+	($param_array as $k => $v) {
+		$pair_str
+		=$k . "=" . $v;
+		array_push($p_str_array,$pair_str);
+	}
+	array_push($p_str_array,$private_key);
+	$joined_str
+	= join('&',$p_str_array);
+	echo
+	$joined_str. PHP_EOL;
+	return
+	md5($joined_str,false);
+}
+$params = array(
+     "customerId"=>1010000055,
+"data"=>"ewogICAgIm9yZGVySWQiOiAiMjAzNjMyMDkyIiwKICAgICJwaW4iOiAiemhhbmdzYW4iLAogICAgImJ1eU51bSI6ICIxMCIsCiAgICAidG90YWxQcmljZSI6ICIxNTAiLAogICAgImdhbWVBY2NvdW50IjogIua4uOaIj+i0puWPtyIsCiAgICAicGVybWl0IjogIiIsCiAgICAic2t1SWQiOiAiMTAxNjg5MjAyOSIsCiAgICAiYnJhbmRJZCI6ICIxMDEwMDAwMDU1Igp",
+     "timestamp"=>"20220618121212");
+$private_key = '1888bc29f89f9e19e7ff8c788ba5fc0c';
+$md5_result =
+gensign($private_key,$params);
+echo $md5_result. PHP_EOL;
+?>
+
+java版本示例：
+import java.security.MessageDigest;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.TreeMap;
+
+public class SignUtils {
+
+    //比较器类
+    public static class MapKeyComparator implements
+        Comparator<String> {
+
+        public int compare(String str1, String str2) {
+            return str1.compareTo(str2);
+        }
+    }
+
+    public static String toHexString(byte[] b) {
+        StringBuffer sb = new StringBuffer();
+        for (int i = 0; i < b.length; ++i) {
+            sb.append("0123456789abcdef".charAt(b[i] >>> 4 &
+                15));
+            sb.append("0123456789abcdef".charAt(b[i] & 15));
+        }
+        return sb.toString();
+    }
+
+
+    /**
+     * MD5生成
+     *
+     * @param str 待加密字符串
+     * @return 16进制加密字符串
+     */
+    public static String encrypt2MD5(String str) {
+        // 加密后的16进制字符串
+        String hexStr = "";
+        try {
+            // MessageDigest类提供信息摘要算法
+            MessageDigest md5 =
+                MessageDigest.getInstance("MD5");
+            // 转换为MD5码
+            byte[] digest =
+                md5.digest(str.getBytes("utf-8"));
+            hexStr = toHexString(digest);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return hexStr;
+    }
+
+    /**
+     * @param privateKey 分配的私匙
+     * @param params     请求接口的参数map
+     * @return
+     */
+    public static String gensign(String privateKey, Map<String, Object> params) {
+        Map<String, Object> sortedMap =
+            new TreeMap<>(new MapKeyComparator());
+        sortedMap.putAll(params);
+        StringBuffer sb = new StringBuffer();
+        for (String key : sortedMap.keySet()) {
+            sb.append(key)
+                .append("=")
+                .append(sortedMap.get(key).toString())
+                .append("&");
+        }
+        sb.append(privateKey);
+        //System.out.println(sb.toString());
+        return encrypt2MD5(sb.toString());
+    }
+
+    // 使用示例
+    public static void main(String[] args) {
+        String privateKey =
+            "1888bc29f89f9e19e7ff8c788ba5fc0c";
+        Map<String, Object> params = new HashMap<>();
+        params.put("customerId", 1010000055);
+        params.put("data",
+            "ewogICAgIm9yZGVySWQiOiAiMjAzNjMyMDkyIiwKICAgICJwaW4iOiAiemhhbmdzYW4iLAogICAgImJ1eU51bSI6ICIxMCIsCiAgICAidG90YWxQcmljZSI6ICIxNTAiLAogICAgImdhbWVBY2NvdW50IjogIua4uOaIj+i0puWPtyIsCiAgICAicGVybWl0IjogIiIsCiAgICAic2t1SWQiOiAiMTAxNjg5MjAyOSIsCiAgICAiYnJhbmRJZCI6ICIxMDEwMDAwMDU1Igp");
+        params.put("timestamp", "20220618121212");
+
+        System.out.println(gensign(privateKey, params));
+    }
+
+
+}
+
+4.5.1请求充值根据2.2.1或者2.3.1接口规范在自测工具中输入指定参数和privateKey，点击请求充值按钮即可模拟接单接口请求。
+4.5.2订单查询根据2.2.2或者2.3.2接口规范在自测工具中输入订单号和privateKey，点击订单查询即可模拟订单查询接口请求。
+
+4.6 商品新建发布1.选择1/2/3级分类，该部分可选择的类目由京东运营人员根据商家申请为商家预先分配
+ 
+图4.2 商品发布类目选择
+
+2.填写商品属性（游戏点卡虚拟类商品必须！！！）及其他标题、商品详情等信息，该部分商品属性的将会同步到游戏点卡售卖系统，若填写有误将导致商品展示信息有误、甚至客户无法对该商品下单，严重影响商品售卖。具体填写界面示例如图4.3/4.4所示，选择不同类目会存在不同差异。
+其中面值是虚拟商品权益计量的数值，例如该商品代表10个Q币，则面值为10，计量单位为“Q币”；再例如英雄联盟100点券，面值即为100。计量单位跟随适用的具体虚拟商品（游戏、视频会员等）由京东运营侧配置；该部分的配置会同步到京东游戏点卡售卖系统，在一些充值类的引流聚合页面会展示该部分信息，切记准确选择填写，否则将影响该部分的展示。
+ 
+图4.3 虚拟商品特殊属性选择
+适用范围选择，若无对应的哪一款游戏/视频品牌等，可向运营人员申请增加下拉框内例如适用游戏选择如下图4.4所示：
+ 
+图4.4 虚拟商品特殊属适用游戏示例
+
+充值类型选择，有直充、卡密两种，该类型的选择需要与系统对接实现的接口一致，例如系统对接时只对接了直充的接口，这里就不能选择发布卡密类的，反之亦然；若店铺内要实现两种方式均可售卖，则需要在系统对接时两中接口均可调通支持。
+ 
+图4.5 特殊属性充值类型选择
+
+3.提交商品发布审批流程，由于虚拟商品购买履约流程的的特殊性，审批完成后仅在京东平台创建了商品（仅仅可以展示给客户看），但是能否进行下单，取决于商家系统与京东内游戏点卡销售系统是否完成了对接，只有对接完成后才可以完整实现对订单的履约。
+
+4.7 视频娱乐会员自动续费管理商家可使用京麦端账户登陆，链接： https://jm-card-pro.pf.jd.com/interfaceManage
+1.【日志查询】：商家可查看京东与商家接口相关交互日志，根据建议返回值和文档接口说明，排查履约相关问题。
+2.【自动续费商品管理】：商家可自行配置自动续费商品及优惠活动，根据自身需求添加自动续费商品和对应优惠活动，其中优惠身份如未找到合适标签，可联系huyuanyuan28@jd.com，wangshirui.9@jd.com 申请。
+3.【续费单管理】：商家可查看和解约用户约签约协议单。
+导出功能注意事项：
+1）支持导出1w条以内数据；大于1w请修改筛选时间。
+2）点击导出，在查看导出任务处下载；若长时间没出现下载按钮，辛苦修改导出时间，减少查询数据。
+3）续费单导出的excel需要填入商家密钥可打开。
+其中2、3 需要权限申请，发邮件到 huyuanyuan28@jd.com，wangshirui.9@jd.com 邮箱申请开通权限。(仅限视频娱乐会员品牌及授权店铺开通权限)
+4.8 接口配置最少接口数量：必须为售卖的类目配置接单接口和订单查询接口，否则商品无法下单、履约。其他接口配置按照场景选择配置。
+适用类目范围：包含【本地生活/旅游出行--游戏/视频服务】下面，除去【游戏加速器、游戏/视频服务实体充值卡】所有三级类目
+4.8.1 接口管理商家可使用京麦端账户登陆，链接： https://jm-card-pro.pf.jd.com/interfaceManage。其中菜单【接口管理】，商家可自行添加或修改接口相关地址，根据需要可对接口文档中接口地址进行新增修改。
+4.8.1.1 类目新增接口配置a、直充+接单接口新增配置
+b、直充+订单查询接口新增配置
+c、卡密+接单接口新增配置
+d、卡密+订单查询接口新增配置
+4.8.1.2 类目编辑接口配置点击编辑即可，为保证接口从A接口平滑切换过渡到B接口（否则将导致已同步到旧接口的订单，在新接口查询不到履约结果导致取消退款）有两种方式可选择（优先考虑第一种）：
+商家同步一周内（可根据未履约订单的最早下单时间灵活选择）A接口系统内的订单，到切换后B接口系统内
+下架店铺内商品或在京东平台停用充值接口，待已接收到的订单全部履约完成后，切换到B接口，上架商品或在京东平台启用充值接口
+
+注意事项：首次入驻（未获取过秘钥）的，需先发邮件（wangshirui.9@jd.com）获取密钥并且配置回调（不需要可以不加）白名单IP，密钥获取之后，登陆商家自行管理配置，其中查询订单接口和接单接口必须配置，后面如需变更只需自行变更即可。请开通接口后的商家合规经营，如出现失败率高、违规经营等情况，或可出现接口停用状态，出现后需商家自行整改并联系运营反馈整改结果，申请接口恢复。
+获取密钥模版如下：
+1、请先确认店铺运营是否归属充值组（如不是无法配置）
+2、申请KEY、添加/变更IP（注意：邮件必须由店铺后台配置的联系人邮箱发出，否则不予配置）
+获取秘钥：填写表格虚拟点卡系统入驻配置KEY参数表  发邮件给京东运营，运营邮件反馈秘钥；
+
+5 QAQ：如何入驻虚拟充值平台？
+A：联系运营，提供商家信息、意向售卖商品类目等信息，从运营人员处获得接口规范和自测工具，再开发完成接单平台并联调完成即可完成入驻。
+
+Q：京东侧订单未推送是因为什么？
+A：如果是新增商家的话和运营人员确认下接口是否配置正确了，也看自行参考2.6进行配置和检查，关键点是订单商品对应的类目接口是否配置正确了；如果是现存商家则需要看下订单商品是否非现存类目商品，如是新增类目商品需申请接口配置进行联调，如不是上述问题则联系京东技术人员排查。
+
+Q：虚拟充值的订单完成之后是否可以申请退款？
+A：原则上虚拟充值的订单完成之后是不可以退款的，如果存在较严重的客诉问题，客服侧可以进行理赔。
+
+Q：商家侧如何给暂停订单申请退款？
+A：方式一：修改商家接单平台的订单充值状态，将状态改成充值失败且确保接单平台提供的查询接口可以查询到此订单状态为充值失败。方式二：接单平台实现回调接口，主动通知京东订单充值失败，且订单查询接口查询订单状态和通知接口回调状态一致。 
+
+Q：商家订单如何对账？
+A：商家订单完成之后可以去京东钱包进行对账和确认货款，确认之后订单货款则打到商家账户。
+
+Q: 如何查询京东侧与商家接口交互的内容
+A: 详见 4.7中的 日志查询，可通过订单号查询最近三个月内京东侧月商家侧交互的接口请求与返回
+
+Q:京麦端，在订单列表中查询不到店铺内下的单子
+A: 默认的订单列表不包含虚拟订单，在订单管理->虚拟订单中查找，如下图所示：

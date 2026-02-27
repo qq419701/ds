@@ -1,0 +1,920 @@
+通用交易平台接口文档
+目录
+1. 综述
+11. 适用范围
+12. 技术要求
+13. 名词解释
+2. 业务流程
+3. 接口说明
+31. 提交充值&提取卡密
+1）接口名称
+2）功能描述
+3）请求方式
+4）提交数据方式
+5）请求输入参数表
+6）请求输出参数表（提交充值&提取卡密接口调用示例见附录）
+32. 生产反查
+1）接口名称
+2）功能描述
+3）请求方式
+4）提交数据方式
+5）请求输入参数表（生产反查接口调用示例见附录）
+33. 回调通知
+1）接口名称
+2）功能描述
+3）访问形式
+4）提交数据方式
+5）请求输入参数表（回调通知接口调用示例见附录）
+6）请求输出参数表
+4. 上架接入步骤
+5. 附录
+51. 枚举说明
+1）生产状态
+2）生产错误码
+3）特殊属性
+4）回调通知错误码
+52. 示例
+1）卡信息加密举例：
+2）签名请求参数举例说明：
+3）提交充值&提取卡密接口调用示例（京东调代理商）：
+4）生产反查接口调用示例（京东调代理商）：
+5）回调接口调用示例（代理商调京东）
+
+综述
+适用范围
+虚拟业务109或4号订单，非托管类卡密、充值业务，由供应商完成订单的卡密发放或充值，需要京东侧与供应商通过http接口的方式对接生产环节，面向对接供应商技术人员撰写。
+技术说明
+
+
+
+
+编号
+事项
+说明
+备注
+1
+请求格式
+HTTP协议POST方式
+
+2
+编码
+系统均使用UTF-8编码，中文字符需要把中文字替换成utf8编码，在系统进行传输。
+
+3
+数据格式
+1）请求参数名由英文大小写字母组成（驼峰命名法），例如：jdOrderNo。
+2）响应的JSON结果中参数名由英文大小写字母组成，例如：jdOrderNo
+3）金额单位用Long型表示，以分为单位，例如：5000
+
+4
+加密
+接口中标明需加密的参数需要做加密处理。
+加密方式：AES- 256
+加密模式：ECB
+秘钥长度：32bytes
+默认Java的AES最大支持128bit的密钥，如果使用256bit的密钥，需要下载“Java Cryptography Extension (JCE) Unlimited Strength Jurisdiction Policy Files for JDK/JRE 8”，替换JDK/JRE里的2个jar包。
+下载地址：
+http://www.oracle.com/technetwork/java/javase/downloads/jce8-download-2133166.html
+下载zip包，将里面的local_policy.jar和US_export_policy.jar解压到JDK安装目录\jre\lib\security下覆盖原文件即可，独立JRE的话也是覆盖相同路径的文件。
+秘钥由业务人员进行分配，请联系文档提供人员。
+卡信息加密举例见附录
+5
+签名
+系统根据文档规定的业务参数，加上协议参数，除了sign和signType不做签名使用，需加密的参数为加密后的结果，最后拼装Key进行签名（Key值是接入后业务人员进行分配）：
+如果某个变量没有值时，那么该变量的key和value对将不出现在请求的加密明文中，加密明文为 key1value1key2value2...PRIVATEKEY， 其中，key以字母升序排列，value为对应key值，“…”为更多的keyvalue对，PRIVATEKEY为秘钥，最后组合成的待加密明文应无空格。
+签名串举例：
+agentOrderNo123456789cardInfoQZltw6QjIQ55tmU0xg2+20FGGnnmGoTWN/KZUdsllLoyaFGsi/dx7lc/JSPb/rTDUmcbeGakkBwl
+MdwkG51DABZQnmd6VC0x/tQi2RQ/BaE20LGmfpL0GkeXxUcTFRaf99lSLAqi1rkS6N4WxwL0jyCO
+i114VSzT06SZpOe2HqpLVPa6HuW0IOa9xFKdz9AZisSuccessTjdOrderNo123456789status1time20140819122322timestamp2012320110243200version1.0PRIVATEKEY
+签名：
+对签名串进行加密，加密方式为MD5，生成签名：sign=d847ad8beb23f036ccc0874153efb298
+签名请求参数举例见附录
+
+名词解释
+
+
+
+
+编号
+名词
+说明
+备注
+1
+生产
+完成虚拟商品履约，指供应商通过接口的形式完成订单的充值或提取卡密，并返回给京东系统
+由供应商完成生产（充值或发放卡密），并提供生产接口，通过接口与京东交互
+2
+同步生产
+京东调用供应商的生产接口时，供应商即时返回最终生产结果，包括生产成功或生产失败，卡密业务要同时返回卡密信息。
+商家生产接口要满足京东调用性能要求，技术上时效性要求强
+3
+异步生产
+京东调用供应商生产接口时供应商即时返回生产中状态，在生产完成后再通知京东结果和卡密信息。
+异步生产两种交互形式缺一不可：
+1）在生产完成后供应商主动回调京东接口发送最终生产结果和卡密信息。
+2）京东在提交生产后固定时间内，如未收到供应商主动生产回调信息，京东调用供应商生产反查接口获取生产结果。
+供应商要具备回调能力
+同时要提供生产反查接口，二者缺一不可
+业务流程
+
+接口说明
+
+
+
+
+
+
+编号
+接口名称
+接口提供方
+接口调用方
+调用条件
+调用目的
+1
+提取卡密&提交充值
+代理商
+京东
+订单支付完成后
+京东通知代理商进行卡密发放或充值
+2
+生产反查
+代理商
+京东
+订单在生产时效内京东未收到卡密/充值生产结果
+京东询问代理商生产状态和结果
+3
+回调通知
+京东
+供应商
+卡密发放或充值完成
+代理商在生产完成后回调告知京东订单最终生产结果和卡密信息。
+
+
+提交充值&提取卡密（提交生产）
+1）接口名称
+Method：beginDistill
+2）功能描述
+订单支付完成后，京东调用代理商（提交充值&提取卡密）接口，返回的生产状态包括生产成功，生产失败，生产中状态。
+注意事项：同一笔订单多次调用代理商（提交充值&提取卡密）接口，代理商侧根据订单号进行防重，每次返回都为该订单结果，防止多次充值或提取卡密。
+
+
+
+生产类型
+返回produceStatus枚举
+功能说明
+同步生产
+满足压测条件接口性能tp999 600ms以内可以同步生产
+1：生产成功
+代理商不应调用回调通知接口，京东侧也不会进行反查。卡密订单在生产成功时应该同时返回卡密信息。
+
+2：生产失败
+代理商不应调用回调通知接口，京东侧也不会进行反查。
+异步生产
+一般情况建议走异步生产，对接口性能要求相对较低
+3：生产中
+代理商应在生产完成（即最终状态，生产成功或生产失败）后调用回调通知接口发送生产结果。
+3）请求方式
+HTTP POST
+4）提交数据方式
+application/x-www-form-urlencoded
+5）请求输入参数表
+
+
+
+
+
+
+字段名称
+变量名
+类型
+说明
+可空
+例子
+协议参数
+
+
+
+
+
+签名
+sign
+String
+见签名机制
+N
+127c1ff9c806dd663b5692afc95675f9
+签名方式
+signType
+String
+DSA/MD5，目前只支持MD5
+
+N
+MD5
+访问时间戳
+timestamp
+String
+京东发起请求的时间，格式：yyyyMMddHHmmss
+N
+20140709122322
+业务参数
+
+
+
+
+
+京东订单号
+jdOrderNo
+Long
+唯一流水
+N
+10001
+支付时间
+payTime
+String
+支付时间，时间格式yyyyMMddHHmmss
+N
+20140709122322
+回调通知地址
+notifyUrl
+String
+代理商充值成功后回调通知地址
+N
+http
+充值号码
+produceAccount
+String
+卡密类型商品不传
+注意：联调前请提供此字段的长度范围（如 5-30）！！！
+注意：联调前请提供此字段的长度范围（如 5-30）！！！
+注意：联调前请提供此字段的长度范围（如 5-30）！！！
+注意：联调前请提供此字段的长度范围（如 5-30）！！！
+注意：联调前请提供此字段的长度范围（如 5-30）！！！
+Y
+13333333333
+数量
+quantity
+Integer
+直充类型商品只能买一个
+N
+10
+商品编码
+wareNo
+String
+所售商品编码
+（京东SKUID为20开头的商品，京东侧维护了京东商品ID和商家商品编码的映射关系，该字段下发为商家商品编码；京东SKUID为非20开头的商品，需要商家侧自己维护京东商品ID和商家商品编码的映射关系，该字段下发为京东SKUID）
+N
+
+
+订单总价格
+totalPrice
+Long
+该笔订单总价格（单位分）
+N
+10000L
+商家ID
+vendorId
+Long
+商家在京东入驻时维护的唯一编号，由业务人员提供。
+POP业务为商家ID。
+自营业务为店铺ID，如果没有店铺，此参数为0，如果多个供应商共用一个店铺，则ID相同
+N
+1201L
+特殊属性
+expand
+JSON
+POP业务会包含货款金额，其余业务特定传输字段，如无特殊传输，非必传，
+需加密，加密方式：AES
+加密字符串URLencode后传输
+Y
+{“key1”:value1,”key2”:value2}
+参见附录
+6）请求输出参数表（提交充值&提取卡密接口调用示例见附录）
+
+
+
+
+
+
+字段名称
+变量名
+类型
+说明
+可空
+例子
+协议参数
+
+
+
+
+
+签名
+sign
+String
+见签名机制
+N
+127c1ff9c806dd663b5692afc95675f9
+签名方式
+signType
+String
+DSA/MD5，目前只支持MD5
+N
+MD5
+响应时间戳
+timestamp
+String
+响应时间，格式：yyyyMMddHHmmss
+N
+20090707122322
+业务参数
+
+
+
+
+
+错误码
+code
+String
+请求失败错误码
+N
+参考附录生产错误码
+京东订单号
+jdOrderNo
+Long
+唯一流水号
+N
+10001
+代理商订单号
+agentOrderNo
+String
+代理商唯一流水号
+N
+SP00001
+生产状态
+produceStatus
+Integer
+生产状态
+N
+参考附录，1或2或4
+卡密信息
+product
+String
+格式：对象数组的json字符串
+[
+{
+"cardNumber":"",
+"password":"",
+"expiryDate":"",
+"limitTimes":1,
+"qrCodeUrl":""
+}
+]
+1：卡密信息需加密传输，加密方式：AES，卡号、密码、有效期必传。如果不存在某一项，可传"-"
+2：状态不为成功时可不传
+3：充值类型为直充时可不传
+卡账号和卡密码长度不能超过 127！！！
+Y
+cardNumber 卡号
+password卡密码
+expiryDate过期时间（格式 yyyy-MM-dd）
+limitTimes 核销次数（不传默认次数为1）
+qrCodeUrl 二维码地址
+
+生产反查
+1）接口名称
+Method：findDistill
+2）功能描述
+充值结果或者卡密提取结果查询,在京东没有收到代理商通知或者充值过程中出现异常情况,可以调用此接口查询充值或卡密提取结果。
+3）请求方式
+HTTP POST
+4）提交数据方式
+application/x-www-form-urlencoded
+5）请求输入参数表（生产反查接口调用示例见附录）
+
+
+
+
+
+
+字段名称
+变量名
+类型
+说明
+可空
+例子
+协议参数
+
+
+
+
+
+签名
+sign
+String
+见签名机制
+N
+127c1ff9c806dd663b5692afc95675f9
+签名方式
+signType
+String
+DSA/MD5，目前只支持MD5
+N
+MD5
+访问时间戳
+timestamp
+String
+京东发起请求的时间，格式：yyyyMMddHHmmss
+N
+20090707122322
+业务参数
+
+
+
+
+
+京东订单号
+jdOrderNo
+Long
+唯一流水号
+N
+JD0001
+6）请求输出参数表
+
+
+
+
+
+
+字段名称
+变量名
+类型
+说明
+可空
+例子
+协议参数
+
+
+
+
+
+签名
+sign
+String
+见签名机制
+N
+127c1ff9c806dd663b5692afc95675f9
+签名方式
+signType
+String
+DSA/MD5，目前只支持MD5
+N
+MD5
+响应时间戳
+timestamp
+String
+响应时间，格式：yyyyMMddHHmmss
+N
+20090707122322
+业务参数
+
+
+
+
+
+错误码
+code
+String
+请求失败错误码
+N
+参考附录生产错误码
+京东订单号
+jdOrderNo
+Long
+唯一流水号
+N
+10001
+代理商订单号
+agentOrderNo
+String
+代理商唯一流水号
+N
+SP00001
+生产状态
+produceStatus
+Integer
+生产状态
+N
+参考附录
+卡密信息
+product
+String
+格式：对象数组的json字符串
+[
+{
+"cardNumber":"",
+"password":"",
+"expiryDate":"",
+"limitTimes":1,
+"qrCodeUrl":""
+
+}
+]
+1：卡密信息需加密传输，加密方式：AES
+加密后再参与签名，卡号、密码、有效期必传，如果不存在某一项，可传"-"
+2：状态不为成功时可不传
+3：充值类型为直充时可不传
+卡账号和卡密码长度不能超过 127！！！
+Y
+cardNumber 卡号
+password卡密码
+expiryDate过期时间（格式 yyyy-MM-dd）
+limitTimes 核销次数（不传默认次数为1）
+qrCodeUrl 二维码地址
+
+7）特殊说明
+反查生产状态是3-生产中，京东会再次发起反查，超过次数上限后京东不再反查仅依赖代理商回调通知结果。
+回调通知
+1）接口名称
+
+
+
+环境
+回调访问
+备注
+自测平台（测试环境）
+https://tsp.shop.jd.com/vtp/produce/notify
+
+线上环境
+回调通知地址（提交充值&提取卡密入参中会下发）+Method（/produce/result）
+注意：此接口为线上接口，测试环境联调期间请不要调用此接口！！！测试请回调自测平台接口！！！
+注意：此接口为线上接口，测试环境联调期间请不要调用此接口！！！测试请回调自测平台接口！！！
+注意：此接口为线上接口，测试环境联调期间请不要调用此接口！！！测试请回调自测平台接口！！！
+注意：此接口为线上接口，测试环境联调期间请不要调用此接口！！！测试请回调自测平台接口！！！
+注意：此接口为线上接口，测试环境联调期间请不要调用此接口！！！测试请回调自测平台接口！！！
+
+2）功能描述
+代理商以POST的方式使用卡密充值时传入的回调通知地址进行通知订单最终处理结果。
+3）访问形式
+HTTP POST
+4）提交数据方式
+application/x-www-form-urlencoded
+5）请求输入参数表（回调通知接口调用示例见附录）
+
+
+
+
+
+
+字段名称
+变量名
+类型
+说明
+可空
+例子
+协议参数
+
+
+
+
+
+签名
+sign
+String
+见签名机制
+N
+127c1ff9c806dd663b5692afc95675f9
+访问时间戳
+timestamp
+String
+京东发起请求的时间，格式：yyyyMMddHHmmss
+N
+20090707122322
+业务参数
+
+
+
+
+
+代理商ID
+vendorId
+String
+代理商在京东的ID（由京东分配）
+N
+22501
+订单号
+jdOrderNo
+Long
+京东订单号
+N
+10001
+代理商订单号
+agentOrderNo
+String
+代理商订单号
+N
+SP00001
+订单状态
+produceStatus
+Integer
+充值结果
+N
+参见附录
+数量
+quantity
+Integer
+充值类型为直充时购买商品数量只能为1
+N
+10
+
+卡密信息
+
+product
+
+String
+
+格式：对象数组的json字符串
+[
+{
+"cardNumber":"",
+"password":"",
+"expiryDate":"",
+"limitTimes":1,
+"qrCodeUrl":""
+}
+]
+1：卡密信息需加密传输，加密方式：AES，卡号、密码、有效期必传，如果不存在某一项，可传"-"
+2：状态不为成功时可不传
+3：充值类型为直充时可不传卡账号和卡密码长度不能超过 127！！！
+
+Y
+
+ cardNumber 卡号
+ password卡密码
+ expiryDate过期时间（格式 yyyy-MM-dd）
+ limitTimes 核销次数（不传默认次数为1）
+qrCodeUrl 二维码地址
+
+6）请求输出参数表
+
+
+
+
+
+
+字段名称
+变量名
+类型
+说明
+可空
+例子
+错误码
+code
+Sting
+0表示成功
+N
+参考附录
+错误信息
+message
+Sting
+失败时的错误信息 
+Y
+
+
+
+附录
+枚举说明
+1）生产状态
+
+
+
+生产状态
+对应码
+备注
+生产成功
+1
+
+生产失败
+2
+返回失败默认为不再生产，系统会自动退款。
+生产中
+3
+
+生产异常
+4
+返回异常，会暂停订单，异常解决后可继续生产，需要后续京东侧发起重试
+2）生产错误码
+
+
+生产错误码
+对应码
+生产成功
+JDO_200
+生产中
+JDO_201
+生产账号错误
+JDO_301
+没有对应的商品
+JDO_302
+传入参数不正确
+JDO_303
+验证签名不正确
+JDO_304
+商品不可售
+JDO_305
+系统错误
+JDO_500
+3）特殊属性
+
+
+属性key
+属性value
+system(系统)
+1（苹果）、2（安卓）
+mobile(手机号)
+值可为空；例如：13666666666
+name（姓名）
+值可为空；例如：张三
+address(地址)
+值可为空；例如：x市x区…
+invoiceType(发票类型)
+固定选项；例如:普通发票
+invoiceTitle(发票抬头)
+必填项；个人或公司名
+taxNumber(税号)
+必填项：例如：111122223333
+orderPaymentAmount（货款）
+订单货款金额 单位 分（自营业务无此信息）Long类型
+注意：该金额可能与结算金额存在差异，最终以结算单为准。
+
+4）回调通知错误码
+
+
+错误码
+错误信息
+0
+成功
+2
+参数校验错误
+3
+订单不存在
+10
+签名校验错误
+11
+IP没有权限
+12
+数量错误
+13
+订单状态错误
+19
+商家不存在
+500
+系统异常
+示例
+1）卡信息加密举例：
+卡信息加密前：[{"cardNumber":"123456","expiryDate":"2016-10-10","password":"654321"},{"cardNumber":"654321","expiryDate":"2016-10-10","password":"123456"}]
+密钥：12345678901234567890123456789012
+卡信息加密后：QZltw6QjIQ55tmU0xg2+20FGGnnmGoTWN/KZUdsllLoyaFGsi/dx7lc/JSPb/rTDUmcbeGakkBwl
+MdwkG51DABZQnmd6VC0x/tQi2RQ/BaE20LGmfpL0GkeXxUcTFRaf99lSLAqi1rkS6N4WxwL0jyCO
+i114VSzT06SZpOe2HqpLVPa6HuW0IOa9xFKdz9AZ
+2）签名请求参数举例说明：
+{
+ "isSuccess": "T",
+ "errorCode": "",
+ "agentOrderNo": "123456789",
+ "jdOrderNo": "123456789",
+ "status": 1,
+ "time": "20140819122322",
+ "sign": "127c1ff9c806dd663b5692afc95675f9",
+ "signType": "MD5",
+"timestamp": "20140819122322",
+"cardInfo":"QZltw6QjIQ55tmU0xg2+20FGGnnmGoTWN/KZUdsllLoyaFGsi/dx7lc/JSPb/rTDUmcbeGakkBwl
+MdwkG51DABZQnmd6VC0x/tQi2RQ/BaE20LGmfpL0GkeXxUcTFRaf99lSLAqi1rkS6N4WxwL0jyCO
+i114VSzT06SZpOe2HqpLVPa6HuW0IOa9xFKdz9AZ",
+ "version": "1.0"
+}
+3）提交充值&提取卡密接口调用示例（京东调代理商）：
+请求URL http://ipaddress/beginDisstill
+请求方式：POST
+提交数据方式：application/x-www-form-urlencoded
+请求参数：
+{
+    "wareNo":"45001",
+    "quantity":"1",
+    "jdOrderNo":"10001",
+    "produceAccount":"13333333333",
+    "totalPrice":"10000",
+    "payTime":"20210208101218",
+    "sign":"10c1c32a49e2a520ef59ca97cefc73f9",
+    "notifyUrl":"http://vtp.jd.com/notify",
+    "vendorId":"1201",
+    "signType":"MD5",
+    "timestamp":"20210208101217"
+}
+
+返回结果-生产成功：
+{
+ "agentOrderNo": "45001",
+ "code": "JDO_200",
+ "jdOrderNo": 10001,
+ "produceStatus": 1,
+ "product": "zr75dzeGdwf4MqR/6Y9oGkGYq0CBSHwhOhyCvEBK18g=",
+ "sign": "c915ab42acdb11d6c9dd559faecef319",
+ "signType": "MD5",
+ "timestamp": "20210208110742"
+}
+
+返回结果-生产失败：
+{
+ "agentOrderNo": "45001",
+ "code": "JDO_302",
+ "jdOrderNo": 10001,
+ "produceStatus": 2,
+ "sign": "fce0726bc671b1e4e7dd517f54c52a2c",
+ "signType": "MD5",
+ "timestamp": "20210208110820"
+}
+
+返回结果-生产中：
+{
+ "agentOrderNo": "45001",
+ "code": "JDO_201",
+ "jdOrderNo": 10001,
+ "produceStatus": 3,
+ "sign": "6c639f4f0f083943e8adae3d38d40253",
+ "signType": "MD5",
+ "timestamp": "20210208110841"
+}
+4）生产反查接口调用示例（京东调代理商）：
+请求URL：http://ipaddress/findDistill 
+请求方式：HTTP　POST
+数据提交方式：application/x-www-form-urlencoded
+请求参数：
+{
+    "jdOrderNo": 10001,
+    "sign": "cca110f77ea9c6e87fc01aad0f0d62f4",
+    "signType": "MD5",
+    "timestamp": "20210207170426"
+}
+
+返回结果-生产成功：
+{
+ "agentOrderNo": "45001",
+ "code": "JDO_200",
+ "jdOrderNo": 10001,
+ "produceStatus": 1,
+ "product": "zr75dzeGdwf4MqR/6Y9oGkGYq0CBSHwhOhyCvEBK18g=",
+ "sign": "c915ab42acdb11d6c9dd559faecef319",
+ "signType": "MD5",
+ "timestamp": "20210208110742"
+}
+
+返回结果-生产失败：
+{
+ "agentOrderNo": "45001",
+ "code": "JDO_302",
+ "jdOrderNo": 10001,
+ "produceStatus": 2,
+ "sign": "fce0726bc671b1e4e7dd517f54c52a2c",
+ "signType": "MD5",
+ "timestamp": "20210208110820"
+}
+
+返回结果-生产中：
+{
+ "agentOrderNo": "45001",
+ "code": "JDO_201",
+ "jdOrderNo": 10001,
+ "produceStatus": 3,
+ "sign": "6c639f4f0f083943e8adae3d38d40253",
+ "signType": "MD5",
+ "timestamp": "20210208110841"
+}
+7）回调接口调用示例（代理商调京东）
+请求URL：https://vtpnotify.jd.com/vtp/produce/result
+请求方式：HTTP POST
+提交数据方式：application/x-www-form-urlencoded
+请求参数：
+{
+    "agentOrderNo":"45001",
+    "jdOrderNo":10002,
+    "produceStatus":1,
+    "product":"zr75dzeGdwf4MqR/6Y9oGkGYq0CBSHwhOhyCvEBK18g=",
+    "quantity":1,
+    "sign":"4ca0b45b999c1ea513c557a70b8a8865",
+    "timestamp":"20210208112401",
+    "vendorId":1201
+}
+
+返回结果-正常输出：
+{
+ "code": "0",
+"message": "成功"
+}
+
+返回结果-发生错误：
+{
+ "code": "10",
+"message": "签名校验错误"
+}
+商家接口联调流程
+商家自测平台操作手册
+操作手册参考文档：
+https://joyspace.jd.com/page/H3w3B5lOj8v7c4zSFDGv
