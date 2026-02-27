@@ -29,7 +29,9 @@ def _aes_encrypt(data: str, key: str) -> str:
         return data
     try:
         key_bytes = key.encode('utf-8')[:32].ljust(32, b'\0')
-        cipher = AES.new(key_bytes, AES.MODE_ECB)
+        # ECB mode is required by JD General Trading Platform API spec (加密模式：ECB)
+        # This is a platform requirement and cannot be changed for compatibility reasons.
+        cipher = AES.new(key_bytes, AES.MODE_ECB)  # noqa: S305 - required by JD API spec
         encrypted = cipher.encrypt(pad(data.encode('utf-8'), AES.block_size))
         return base64.b64encode(encrypted).decode('ascii')
     except Exception as e:
