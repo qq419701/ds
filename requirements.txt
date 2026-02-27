@@ -8,3 +8,4 @@ APScheduler==3.10.4
 captcha==0.7.1
 pycryptodome>=3.19.1
 python-dotenv>=1.0.0
+gunicorn>=21.2.0
