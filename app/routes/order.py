@@ -425,7 +425,7 @@ def notify_refund(order_id):
             success, message = callback_general_refund(shop, order)
         
         if success:
-            order.order_status = 3  # 退款/取消（测试期望值为3，与 STATUS_MAP 中"已取消"对应）
+            order.order_status = 4  # 已退款
             order.notify_status = NOTIFY_STATUS_SUCCESS
             order.notify_time = datetime.now()
             db.session.commit()
