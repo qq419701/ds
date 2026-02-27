@@ -120,13 +120,8 @@ def callback_game_direct_success(shop, order):
     """
     callback_url = shop.game_api_url or shop.game_direct_callback_url
     if not callback_url:
-        logger.info(f"订单 {order.jd_order_no} 未配置游戏直充回调地址，跳过回调")
-        return True, '无需回调（未配置回调地址）'
-
-    data_obj = {
-        'orderId': order.jd_order_no,
-        'orderStatus': '0',
-    }
+        logger.warning(f"订单 {order.jd_order_no} 未配置游戏直充回调地址，无法回调")
+        return False, '未配置回调地址，请在店铺设置中填写游戏直充回调地址'
 
     params = _build_game_callback_params(shop, data_obj)
 
@@ -162,8 +157,8 @@ def callback_game_card_deliver(shop, order, cards):
     """
     callback_url = shop.game_api_url or shop.game_card_callback_url
     if not callback_url:
-        logger.info(f"订单 {order.jd_order_no} 未配置游戏卡密回调地址，跳过回调")
-        return True, '无需回调（未配置回调地址）'
+        logger.warning(f"订单 {order.jd_order_no} 未配置游戏点卡回调地址，无法回调")
+        return False, '未配置回调地址，请在店铺设置中填写游戏点卡回调地址'
 
     jd_cards = _normalize_cards_for_jd(cards)
 
@@ -201,8 +196,8 @@ def callback_game_refund(shop, order):
     """
     callback_url = shop.game_api_url or shop.game_card_callback_url or shop.game_direct_callback_url
     if not callback_url:
-        logger.info(f"订单 {order.jd_order_no} 未配置回调地址，跳过退款回调")
-        return True, '无需回调（未配置回调地址）'
+        logger.warning(f"订单 {order.jd_order_no} 未配置游戏回调地址，无法回调")
+        return False, '未配置回调地址，请在店铺设置中填写游戏点卡回调地址'
 
     data_obj = {
         'orderId': order.jd_order_no,

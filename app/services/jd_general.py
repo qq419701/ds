@@ -146,8 +146,8 @@ def callback_general_success(shop, order):
     """
     callback_url = getattr(order, 'notify_url', None) or shop.general_callback_url
     if not callback_url:
-        logger.info(f"订单 {order.jd_order_no} 未配置通用交易回调地址，跳过回调")
-        return True, '无需回调（未配置回调地址）'
+        logger.warning(f"订单 {order.jd_order_no} 未配置通用交易回调地址，无法回调")
+        return False, '未配置回调地址，请在店铺设置中填写通用交易回调地址'
 
     if not callback_url.endswith('/produce/result'):
         callback_url = callback_url.rstrip('/') + '/produce/result'
@@ -182,8 +182,8 @@ def callback_general_card_deliver(shop, order, cards):
     """
     callback_url = getattr(order, 'notify_url', None) or shop.general_callback_url
     if not callback_url:
-        logger.info(f"订单 {order.jd_order_no} 未配置通用交易回调地址，跳过卡密回调")
-        return True, '无需回调（未配置回调地址）'
+        logger.warning(f"订单 {order.jd_order_no} 未配置通用交易回调地址，无法回调")
+        return False, '未配置回调地址，请在店铺设置中填写通用交易回调地址'
 
     if not callback_url.endswith('/produce/result'):
         callback_url = callback_url.rstrip('/') + '/produce/result'
@@ -217,8 +217,8 @@ def callback_general_refund(shop, order):
     """
     callback_url = getattr(order, 'notify_url', None) or shop.general_callback_url
     if not callback_url:
-        logger.info(f"订单 {order.jd_order_no} 未配置通用交易回调地址，跳过退款回调")
-        return True, '无需回调（未配置回调地址）'
+        logger.warning(f"订单 {order.jd_order_no} 未配置通用交易回调地址，无法回调")
+        return False, '未配置回调地址，请在店铺设置中填写通用交易回调地址'
 
     if not callback_url.endswith('/produce/result'):
         callback_url = callback_url.rstrip('/') + '/produce/result'
