@@ -130,7 +130,13 @@ def _do_callback(url, params, order, is_json=True):
         else:
             resp = requests.post(url, data=params, timeout=10)
 
-        result = resp.json()
+        try:
+            result = resp.json()
+        except Exception:
+            logger.error(f"回调响应非JSON order_id={order.order_id} url={url} body={resp.text[:500]}")
+            order.notify_status = 2
+            db.session.commit()
+            return False, resp.text
         # 游戏点卡：retCode=="100"；通用交易：code=="0"
         success = result.get('retCode') == '100' or result.get('code') == '0'
 
