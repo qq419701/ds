@@ -1,0 +1,395 @@
+{% extends "layouts/base.html" %}
+{% block title %}订单详情{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-title">
+        📄 订单详情
+        <a href="{{ url_for('order.order_list') }}" class="btn btn-sm" style="float: right;">返回列表</a>
+    </div>
+
+    <div class="detail-section">
+        <h3>📋 基本信息</h3>
+        <div class="detail-grid">
+            <div class="detail-item">
+                <label>系统订单号：</label>
+                <span>{{ order.order_no }}</span>
+            </div>
+            <div class="detail-item">
+                <label>京东订单号：</label>
+                <span>{{ order.jd_order_no }}</span>
+            </div>
+            <div class="detail-item">
+                <label>店铺名称：</label>
+                <span>{{ order.shop.shop_name if order.shop else '未知' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>订单类型：</label>
+                <span>
+                    {% if order.shop_type == 1 %}
+                        <span class="badge badge-info">游戏点卡</span>
+                    {% else %}
+                        <span class="badge badge-success">通用交易</span>
+                    {% endif %}
+                    -
+                    {% if order.order_type == 1 %}
+                        <span class="badge badge-primary">直充</span>
+                    {% else %}
+                        <span class="badge badge-warning">卡密</span>
+                    {% endif %}
+                </span>
+            </div>
+            <div class="detail-item">
+                <label>订单状态：</label>
+                <span>
+                    {% if order.order_status == 0 %}
+                        <span class="badge badge-warning">⏳ 待处理</span>
+                    {% elif order.order_status == 1 %}
+                        <span class="badge badge-info">🔄 处理中</span>
+                    {% elif order.order_status == 2 %}
+                        <span class="badge badge-success">✅ 已完成</span>
+                    {% elif order.order_status == 3 %}
+                        <span class="badge badge-secondary">❌ 已取消</span>
+                    {% elif order.order_status == 4 %}
+                        <span class="badge badge-danger">💰 已退款</span>
+                    {% elif order.order_status == 5 %}
+                        <span class="badge badge-error">⚠️ 异常</span>
+                    {% endif %}
+                </span>
+            </div>
+            <div class="detail-item">
+                <label>商品信息：</label>
+                <span>{{ order.product_info or '-' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>SKU ID：</label>
+                <span>{{ order.sku_id or '-' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>订单金额：</label>
+                <span class="amount">¥{{ '%.2f'|format(order.amount / 100) }}</span>
+            </div>
+            <div class="detail-item">
+                <label>订单数量：</label>
+                <span>{{ order.quantity }}</span>
+            </div>
+            <div class="detail-item">
+                <label>充值账号：</label>
+                <span>{{ order.produce_account or '-' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>创建时间：</label>
+                <span>{{ order.create_time.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+            </div>
+            <div class="detail-item">
+                <label>备注：</label>
+                <span>{{ order.remark or '-' }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 卡密订单：显示或填写卡密 -->
+    {% if order.order_type == 2 %}
+    <div class="detail-section">
+        <h3>💳 卡密信息</h3>
+        
+        {% if order.card_info_parsed %}
+            <!-- 已有卡密，显示列表 -->
+            <div class="card-list-container">
+                <table class="card-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>卡号</th>
+                            <th>密码</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for card in order.card_info_parsed %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ card.cardNo }}</td>
+                            <td>{{ card.cardPwd }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <!-- 未填写卡密，显示填写表单 -->
+            <div class="alert alert-warning">
+                ⚠️ 该订单需要 <strong>{{ order.quantity }}</strong> 组卡密，���填写后提交
+            </div>
+            
+            <div class="card-input-tools mb-3">
+                <button type="button" class="btn btn-primary" onclick="generateRandomCards()">
+                    🎲 一键生成随机卡密（{{ order.quantity }}组）
+                </button>
+                <button type="button" class="btn" onclick="clearAllCards()">
+                    🗑️ 清空全部
+                </button>
+            </div>
+            
+            <form id="cardForm" onsubmit="submitCards(event)">
+                <div id="cardInputs">
+                    {% for i in range(order.quantity) %}
+                    <div class="card-input-row">
+                        <span class="card-index">第 {{ i+1 }} 组：</span>
+                        <input type="text" 
+                               class="form-control card-no" 
+                               name="cardNo_{{ i }}" 
+                               placeholder="卡号（16位数字）" 
+                               required 
+                               pattern="[0-9]{16}"
+                               maxlength="16">
+                        <input type="text" 
+                               class="form-control card-pwd" 
+                               name="cardPwd_{{ i }}" 
+                               placeholder="密码（6位）" 
+                               required 
+                               pattern="[A-Za-z0-9]{6}"
+                               maxlength="6">
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success">💾 保存卡密</button>
+                    <a href="{{ url_for('order.order_list') }}" class="btn">取消</a>
+                </div>
+            </form>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- 操作日志 -->
+    <div class="detail-section">
+        <h3>📜 操作日志</h3>
+        <div class="log-container">
+            <div class="log-item">
+                <span class="log-time">{{ order.create_time.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                <span class="log-content">订单创建</span>
+            </div>
+            {% if order.card_info_parsed %}
+            <div class="log-item">
+                <span class="log-time">-</span>
+                <span class="log-content">已填写 {{ order.card_info_parsed|length }} 组卡密</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.detail-section {
+    margin-bottom: 30px;
+}
+.detail-section h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #1890ff;
+}
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+}
+.detail-item {
+    display: flex;
+    align-items: center;
+}
+.detail-item label {
+    min-width: 120px;
+    font-weight: 600;
+    color: #666;
+}
+.detail-item .amount {
+    color: #ff4d4f;
+    font-weight: bold;
+    font-size: 16px;
+}
+.badge {
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+}
+.badge-info { background: #1890ff; color: white; }
+.badge-success { background: #52c41a; color: white; }
+.badge-primary { background: #722ed1; color: white; }
+.badge-warning { background: #faad14; color: white; }
+.badge-danger { background: #ff4d4f; color: white; }
+.badge-secondary { background: #8c8c8c; color: white; }
+.badge-error { background: #fa541c; color: white; }
+
+/* 卡密表格 */
+.card-list-container {
+    overflow-x: auto;
+}
+.card-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.card-table th,
+.card-table td {
+    padding: 10px;
+    border: 1px solid #e8e8e8;
+    text-align: left;
+}
+.card-table th {
+    background: #fafafa;
+    font-weight: 600;
+}
+.card-table tbody tr:hover {
+    background: #f5f5f5;
+}
+
+/* 卡密输入 */
+.card-input-tools {
+    display: flex;
+    gap: 10px;
+}
+.card-input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.card-index {
+    min-width: 80px;
+    font-weight: 600;
+    color: #666;
+}
+.card-no,
+.card-pwd {
+    flex: 1;
+    max-width: 300px;
+}
+
+/* 日志 */
+.log-container {
+    background: #fafafa;
+    padding: 15px;
+    border-radius: 4px;
+}
+.log-item {
+    padding: 8px 0;
+    border-bottom: 1px solid #e8e8e8;
+}
+.log-item:last-child {
+    border-bottom: none;
+}
+.log-time {
+    color: #999;
+    font-size: 13px;
+    margin-right: 15px;
+}
+.log-content {
+    color: #333;
+}
+</style>
+
+<script>
+// 生成随机卡密
+function generateRandomCards() {
+    const quantity = {{ order.quantity }};
+    
+    for (let i = 0; i < quantity; i++) {
+        // 生成16位随机卡号
+        const cardNo = generateRandomNumber(16);
+        // 生成6位随机密码（数字+字母）
+        const cardPwd = generateRandomPassword(6);
+        
+        document.querySelector(`input[name="cardNo_${i}"]`).value = cardNo;
+        document.querySelector(`input[name="cardPwd_${i}"]`).value = cardPwd;
+    }
+    
+    alert('✅ 已生成 ' + quantity + ' 组随机卡密');
+}
+
+// 生成随机数字
+function generateRandomNumber(length) {
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += Math.floor(Math.random() * 10);
+    }
+    return result;
+}
+
+// 生成随机密码（数字+字母）
+function generateRandomPassword(length) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+}
+
+// 清空所有卡密
+function clearAllCards() {
+    if (confirm('确认清空所有卡密输入？')) {
+        const quantity = {{ order.quantity }};
+        for (let i = 0; i < quantity; i++) {
+            document.querySelector(`input[name="cardNo_${i}"]`).value = '';
+            document.querySelector(`input[name="cardPwd_${i}"]`).value = '';
+        }
+    }
+}
+
+// 提交卡密
+function submitCards(event) {
+    event.preventDefault();
+    
+    const quantity = {{ order.quantity }};
+    const cards = [];
+    
+    // 收集所有卡密
+    for (let i = 0; i < quantity; i++) {
+        const cardNo = document.querySelector(`input[name="cardNo_${i}"]`).value.trim();
+        const cardPwd = document.querySelector(`input[name="cardPwd_${i}"]`).value.trim();
+        
+        if (!cardNo || !cardPwd) {
+            alert(`❌ 第 ${i+1} 组卡密未填写完整`);
+            return;
+        }
+        
+        if (cardNo.length !== 16 || !/^\d{16}$/.test(cardNo)) {
+            alert(`❌ 第 ${i+1} 组卡号必须是16位数字`);
+            return;
+        }
+        
+        if (cardPwd.length !== 6 || !/^[A-Za-z0-9]{6}$/.test(cardPwd)) {
+            alert(`❌ 第 ${i+1} 组密码必须是6位数字或字母`);
+            return;
+        }
+        
+        cards.push({
+            cardNo: cardNo,
+            cardPwd: cardPwd
+        });
+    }
+    
+    // 提交到后端
+    fetch('/order/{{ order.id }}/save-cards', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({cards: cards})
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ ' + data.message);
+            location.reload();
+        } else {
+            alert('❌ ' + data.message);
+        }
+    })
+    .catch(err => {
+        alert('❌ 提交失败：' + err);
+    });
+}
+</script>
+{% endblock %}
