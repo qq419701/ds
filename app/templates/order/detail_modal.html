@@ -1,0 +1,176 @@
+<div class="card" style="width: 100%; max-width: 100%; margin: 0; padding: 20px; box-sizing: border-box; background: white;">
+    <div class="card-title">
+        📄 订单详情
+    </div>
+
+    <div class="detail-section">
+        <h3>📋 基本信息</h3>
+        <div class="detail-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px 60px; width: 100%;">
+            <div class="detail-item">
+                <label>系统订单号：</label>
+                <span>{{ order.order_no }}</span>
+            </div>
+            <div class="detail-item">
+                <label>京东订单号：</label>
+                <span>{{ order.jd_order_no }}</span>
+            </div>
+            <div class="detail-item">
+                <label>店铺名称：</label>
+                <span>{{ order.shop.shop_name if order.shop else '未知' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>订单类型：</label>
+                <span>
+                    {% if order.shop_type == 1 %}
+                        <span class="badge badge-info">游戏点卡</span>
+                    {% else %}
+                        <span class="badge badge-success">通用交易</span>
+                    {% endif %}
+                    -
+                    {% if order.order_type == 1 %}
+                        <span class="badge badge-primary">直充</span>
+                    {% else %}
+                        <span class="badge badge-warning">卡密</span>
+                    {% endif %}
+                </span>
+            </div>
+            <div class="detail-item">
+                <label>订单状态：</label>
+                <span>
+                    {% if order.order_status == 0 %}
+                        <span class="badge badge-warning">⏳ 待处理</span>
+                    {% elif order.order_status == 1 %}
+                        <span class="badge badge-info">🔄 处理中</span>
+                    {% elif order.order_status == 2 %}
+                        <span class="badge badge-success">✅ 已完成</span>
+                    {% elif order.order_status == 3 %}
+                        <span class="badge badge-secondary">❌ 已取消</span>
+                    {% elif order.order_status == 4 %}
+                        <span class="badge badge-danger">💰 已退款</span>
+                    {% elif order.order_status == 5 %}
+                        <span class="badge badge-error">⚠️ 异常</span>
+                    {% endif %}
+                </span>
+            </div>
+            <div class="detail-item">
+                <label>商品信息：</label>
+                <span>{{ order.product_info or '-' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>SKU ID：</label>
+                <span>{{ order.sku_id or '-' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>订单金额：</label>
+                <span class="amount">¥{{ '%.2f'|format(order.amount / 100) }}</span>
+            </div>
+            <div class="detail-item">
+                <label>订单数量：</label>
+                <span>{{ order.quantity }}</span>
+            </div>
+            <div class="detail-item">
+                <label>充值账号：</label>
+                <span>{{ order.produce_account or '-' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>创建时间：</label>
+                <span>{{ order.create_time.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+            </div>
+            <div class="detail-item">
+                <label>备注：</label>
+                <span>{{ order.remark or '-' }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 卡密订单：显示或填写卡密 -->
+    {% if order.order_type == 2 %}
+    <div class="detail-section">
+        <h3>💳 卡密信息</h3>
+        
+        {% if order.card_info_parsed %}
+            <!-- 已有卡密，显示列表 -->
+            <div class="card-list-container">
+                <table class="card-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>卡号</th>
+                            <th>密码</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for card in order.card_info_parsed %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ card.cardNo }}</td>
+                            <td>{{ card.cardPwd }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <!-- 未填写卡密，显示填写表单 -->
+            <div class="alert alert-warning">
+                ⚠️ 该订单需要 <strong>{{ order.quantity }}</strong> 组卡密，请填写后提交
+            </div>
+            
+            <div class="card-input-tools mb-3">
+                <button type="button" class="btn btn-primary" onclick="generateRandomCards({{ order.quantity }})">
+                    🎲 一键生成随机卡密（{{ order.quantity }}组）
+                </button>
+                <button type="button" class="btn" onclick="clearAllCards({{ order.quantity }})">
+                    🗑️ 清空全部
+                </button>
+            </div>
+            
+            <form id="cardForm" onsubmit="submitCards(event)" data-order-id="{{ order.id }}" data-quantity="{{ order.quantity }}">
+                <div id="cardInputs">
+                    {% for i in range(order.quantity) %}
+                    <div class="card-input-row">
+                        <span class="card-index">第 {{ i+1 }} 组：</span>
+                        <input type="text" 
+                               class="form-control card-no" 
+                               name="cardNo_{{ i }}" 
+                               placeholder="卡号" 
+                               required 
+                               
+                               >
+                        <input type="text" 
+                               class="form-control card-pwd" 
+                               name="cardPwd_{{ i }}" 
+                               placeholder="密码" 
+                               required 
+                               
+                               >
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success">💾 保存卡密</button>
+                </div>
+            </form>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- 操作日志 -->
+    <div class="detail-section">
+        <h3>📜 操作日志</h3>
+        <div class="log-container">
+            <div class="log-item">
+                <span class="log-time">{{ order.create_time.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                <span class="log-content">订单创建</span>
+            </div>
+            {% if order.card_info_parsed %}
+            <div class="log-item">
+                <span class="log-time">-</span>
+                <span class="log-content">已填写 {{ order.card_info_parsed|length }} 组卡密</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+

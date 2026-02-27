@@ -1,0 +1,64 @@
+{% extends "layouts/base.html" %}
+{% block title %}用户管理{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="flex justify-between items-center mb-4">
+        <div class="card-title">👥 用户管理</div>
+        <a href="{{ url_for('user.user_create') }}" class="btn btn-primary">+ 新建用户</a>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>用户名</th>
+                    <th>姓名</th>
+                    <th>角色</th>
+                    <th>查看订单</th>
+                    <th>发货</th>
+                    <th>退款</th>
+                    <th>状态</th>
+                    <th>最后登录</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td>{{ u.username }}</td>
+                    <td>{{ u.name or '-' }}</td>
+                    <td>
+                        {% if u.role == 'admin' %}
+                        <span class="badge badge-info">管理员</span>
+                        {% else %}
+                        <span class="badge badge-default">操作员</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ '✅' if u.is_admin or u.can_view_order else '❌' }}</td>
+                    <td>{{ '✅' if u.is_admin or u.can_deliver else '❌' }}</td>
+                    <td>{{ '✅' if u.is_admin or u.can_refund else '❌' }}</td>
+                    <td>
+                        {% if u.is_active %}
+                        <span class="badge badge-success">激活</span>
+                        {% else %}
+                        <span class="badge badge-danger">禁用</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ u.last_login.strftime('%m-%d %H:%M') if u.last_login else '-' }}</td>
+                    <td>
+                        <a href="{{ url_for('user.user_edit', user_id=u.id) }}" class="btn btn-sm">编辑</a>
+                        {% if u.id != current_user.id %}
+                        <form method="POST" action="{{ url_for('user.user_delete', user_id=u.id) }}" style="display:inline;"
+                              onsubmit="return confirm('确认删除此用户？')">
+                            <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

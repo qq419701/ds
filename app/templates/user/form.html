@@ -1,0 +1,91 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ '编辑用户' if user else '新建用户' }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-title">{{ '编辑用户' if user else '👥 新建用户' }}</div>
+    <form method="POST">
+        <div class="form-row">
+            <div class="form-group">
+                <label>用户名 *</label>
+                {% if user %}
+                <input type="text" class="form-control" value="{{ user.username }}" disabled>
+                {% else %}
+                <input type="text" name="username" class="form-control" required>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                <label>{{ '新密码（留空不修改）' if user else '密码 *' }}</label>
+                <input type="password" name="password" class="form-control" {{ '' if user else 'required' }}>
+            </div>
+            <div class="form-group">
+                <label>姓名</label>
+                <input type="text" name="name" class="form-control" value="{{ user.name or '' if user else '' }}">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>角色</label>
+                <select name="role" class="form-control">
+                    <option value="operator" {{ 'selected' if not user or user.role == 'operator' }}>操作员</option>
+                    <option value="admin" {{ 'selected' if user and user.role == 'admin' }}>管理员</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>状态</label>
+                <select name="is_active" class="form-control">
+                    <option value="1" {{ 'selected' if not user or user.is_active_flag == 1 }}>激活</option>
+                    <option value="0" {{ 'selected' if user and user.is_active_flag == 0 }}>禁用</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="section-title">权限配置</div>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="hidden" name="can_view_order" value="0">
+                    <input type="checkbox" name="can_view_order" value="1" {{ 'checked' if not user or user.can_view_order }}>
+                    查看订单
+                </label>
+            </div>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="hidden" name="can_deliver" value="0">
+                    <input type="checkbox" name="can_deliver" value="1" {{ 'checked' if user and user.can_deliver }}>
+                    发货权限
+                </label>
+            </div>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="hidden" name="can_refund" value="0">
+                    <input type="checkbox" name="can_refund" value="1" {{ 'checked' if user and user.can_refund }}>
+                    退款权限
+                </label>
+            </div>
+        </div>
+
+        <div class="section-title">店铺权限</div>
+        <div class="form-row">
+            {% for shop in shops %}
+            <div class="form-group" style="flex: 0 0 auto;">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="shop_ids" value="{{ shop.id }}"
+                           {{ 'checked' if user and user_shop_ids is defined and shop.id in user_shop_ids }}>
+                    {{ shop.shop_name }}
+                </label>
+            </div>
+            {% endfor %}
+            {% if not shops %}
+            <div class="form-group"><em>暂无店铺</em></div>
+            {% endif %}
+        </div>
+
+        <div class="flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">保存</button>
+            <a href="{{ url_for('user.user_list') }}" class="btn">取消</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

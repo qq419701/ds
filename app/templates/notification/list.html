@@ -1,0 +1,99 @@
+{% extends "layouts/base.html" %}
+{% block title %}通知日志{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-title">🔔 通知日志</div>
+
+    <form method="GET" class="form-inline">
+        <div class="form-group">
+            <label>店铺</label>
+            <select name="shop_id" class="form-control">
+                <option value="">全部</option>
+                {% for s in shops %}
+                <option value="{{ s.id }}" {{ 'selected' if request.args.get('shop_id')|int == s.id }}>{{ s.shop_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>通知类型</label>
+            <select name="notify_type" class="form-control">
+                <option value="">全部</option>
+                <option value="dingtalk" {{ 'selected' if request.args.get('notify_type') == 'dingtalk' }}>钉钉</option>
+                <option value="wecom" {{ 'selected' if request.args.get('notify_type') == 'wecom' }}>企业微信</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>状态</label>
+            <select name="notify_status" class="form-control">
+                <option value="-1">全部</option>
+                <option value="1" {{ 'selected' if request.args.get('notify_status') == '1' }}>成功</option>
+                <option value="0" {{ 'selected' if request.args.get('notify_status') == '0' }}>失败</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary">搜索</button>
+        </div>
+    </form>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>订单ID</th>
+                    <th>店铺</th>
+                    <th>通知类型</th>
+                    <th>状态</th>
+                    <th>发送时间</th>
+                    <th>错误信息</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>{{ log.order_id }}</td>
+                    <td>{{ log.shop.shop_name if log.shop else '-' }}</td>
+                    <td>{{ log.notify_type_label }}</td>
+                    <td>
+                        {% if log.notify_status == 1 %}
+                        <span class="badge badge-success">✅ 成功</span>
+                        {% else %}
+                        <span class="badge badge-danger">❌ 失败</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ log.create_time.strftime('%Y-%m-%d %H:%M:%S') if log.create_time else '-' }}</td>
+                    <td>{{ log.error_message or '-' }}</td>
+                    <td>
+                        {% if log.notify_status == 0 %}
+                        <button class="btn btn-sm btn-warning" onclick="resendNotification({{ log.id }})">重新发送</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not logs %}
+                <tr><td colspan="7" class="text-center">暂无通知日志</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if pagination.pages > 1 %}
+    <div class="pagination">
+        {% if pagination.has_prev %}
+        <a href="?page={{ pagination.prev_num }}">上一页</a>
+        {% endif %}
+        {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            {% if p %}
+                <a href="?page={{ p }}" class="{{ 'active' if p == pagination.page }}">{{ p }}</a>
+            {% else %}
+                <span>...</span>
+            {% endif %}
+        {% endfor %}
+        {% if pagination.has_next %}
+        <a href="?page={{ pagination.next_num }}">下一页</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
