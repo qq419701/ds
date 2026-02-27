@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import requests
@@ -132,7 +133,6 @@ def verify_agiso_push_sign(params: dict, json_body: str, timestamp: str, app_sec
     验证阿奇索推送签名
     MD5(AppSecret + json{json内容} + timestamp{时间戳} + AppSecret)
     """
-    import hashlib
     plain = f"{app_secret}json{json_body}timestamp{timestamp}{app_secret}"
     expected = hashlib.md5(plain.encode('utf-8')).hexdigest()
     return params.get('sign', '') == expected

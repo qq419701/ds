@@ -175,8 +175,8 @@ def game_card():
         return jsonify({"retCode": "100", "retMessage": "成功", "data": ""})
 
     if shop.agiso_enabled == 1:
-        from app.services.agiso_service import send_game_direct
-        send_game_direct(shop, order)
+        from app.services.agiso_service import send_game_card
+        send_game_card(shop, order, '')
     elif shop.auto_deliver == 1:
         auto_deliver_card(shop, order)
         if order.card_info and order.order_status == 2:

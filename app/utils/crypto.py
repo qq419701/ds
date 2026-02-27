@@ -12,9 +12,8 @@ def base64_decode(data: str) -> str:
     """Base64解码（支持标准和URL安全格式）"""
     # 处理URL安全的Base64（替换字符并补齐填充）
     data = data.replace('-', '+').replace('_', '/')
-    padding = 4 - len(data) % 4
-    if padding != 4:
-        data += '=' * padding
+    padding = (4 - len(data) % 4) % 4
+    data += '=' * padding
     return base64.b64decode(data).decode('utf-8')
 
 

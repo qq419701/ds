@@ -83,10 +83,7 @@ def _handle_auto_deliver_complete(shop, push_data):
 
     # 提取卡密数据
     card_list = push_data.get('cardList', [])
-    if not shop:
-        shop_obj = order.shop
-    else:
-        shop_obj = shop
+    shop_obj = shop or order.shop
 
     if order.shop_type == 1:
         # 游戏点卡回调
