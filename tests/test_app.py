@@ -590,3 +590,188 @@ class TestAPISignatureVerification:
                            }))
         data = json.loads(resp.data)
         assert data['success'] is True
+
+
+# ---- 91卡券服务测试 ----
+
+class TestCard91Service:
+    def test_build_sign_consistency(self, app):
+        """测试91卡券签名一致性"""
+        from app.services.card91 import _build_sign
+        params = {'api_key': 'test_key', 'timestamp': '1234567890', 'card_type_id': '123'}
+        sign1 = _build_sign(params, 'test_secret')
+        sign2 = _build_sign(params, 'test_secret')
+        assert sign1 == sign2
+        assert len(sign1) == 32  # MD5签名为32位
+
+    def test_build_sign_order_independent(self, app):
+        """测试91卡券签名与参数顺序无关"""
+        from app.services.card91 import _build_sign
+        params1 = {'a': '1', 'b': '2', 'c': '3'}
+        params2 = {'c': '3', 'a': '1', 'b': '2'}
+        assert _build_sign(params1, 'secret') == _build_sign(params2, 'secret')
+
+    def test_build_sign_excludes_sign_param(self, app):
+        """测试签名时排除sign参数本身"""
+        from app.services.card91 import _build_sign
+        params_without = {'api_key': 'key', 'timestamp': '123'}
+        params_with = {'api_key': 'key', 'timestamp': '123', 'sign': 'old_sign'}
+        assert _build_sign(params_without, 'secret') == _build_sign(params_with, 'secret')
+
+    def test_no_api_key_returns_error(self, app, shop):
+        """测试未配置API密钥时返回错误"""
+        from app.services.card91 import card91_fetch_cards
+        shop.card91_api_key = None
+        ok, msg, cards = card91_fetch_cards(shop, 'type_1', 1, 'ORD001')
+        assert ok is False
+        assert '未配置' in msg
+        assert cards == []
+
+    def test_auto_deliver_no_product_config(self, app, shop, order):
+        """测试商品未配置91卡券时返回错误"""
+        from app.services.card91 import card91_auto_deliver
+        ok, msg, cards = card91_auto_deliver(shop, order, None)
+        assert ok is False
+        assert '未配置' in msg or '卡种' in msg
+
+    def test_test_connection_no_key(self, app, shop):
+        """测试连接时未配置密钥返回错误"""
+        from app.services.card91 import card91_test_connection
+        shop.card91_api_key = None
+        ok, msg = card91_test_connection(shop)
+        assert ok is False
+
+
+# ---- 商品管理路由测试 ----
+
+class TestProductRoutes:
+    def test_product_list_admin(self, client, admin_user):
+        """管理员可以访问商品列表"""
+        login(client, 'admin', 'admin123')
+        resp = client.get('/product/')
+        assert resp.status_code == 200
+
+    def test_product_list_operator(self, client, operator_user):
+        """操作员可以访问商品列表（只看授权店铺）"""
+        login(client, 'operator', 'op123')
+        resp = client.get('/product/')
+        assert resp.status_code == 200
+
+    def test_product_create(self, client, admin_user, shop):
+        """管理员可以创建商品配置"""
+        from app.models.product import Product
+        login(client, 'admin', 'admin123')
+        resp = client.post('/product/create', data={
+            'shop_id': str(shop.id),
+            'product_name': '爱奇艺月卡',
+            'sku_id': 'SKU001',
+            'deliver_type': '1',
+            'card91_card_type_id': 'TYPE001',
+            'card91_card_type_name': '爱奇艺卡',
+            'is_enabled': '1',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        p = Product.query.filter_by(sku_id='SKU001').first()
+        assert p is not None
+        assert p.deliver_type == 1
+
+    def test_product_edit(self, client, admin_user, db, shop):
+        """管理员可以编辑商品配置"""
+        from app.models.product import Product
+        product = Product(shop_id=shop.id, product_name='测试商品', deliver_type=0, is_enabled=1)
+        db.session.add(product)
+        db.session.commit()
+
+        login(client, 'admin', 'admin123')
+        resp = client.post(f'/product/edit/{product.id}', data={
+            'shop_id': str(shop.id),
+            'product_name': '修改后商品',
+            'deliver_type': '0',
+            'is_enabled': '1',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert product.product_name == '修改后商品'
+
+    def test_product_delete(self, client, admin_user, db, shop):
+        """管理员可以删除商品配置"""
+        from app.models.product import Product
+        product = Product(shop_id=shop.id, product_name='待删除商品', deliver_type=0, is_enabled=1)
+        db.session.add(product)
+        db.session.commit()
+        pid = product.id
+
+        login(client, 'admin', 'admin123')
+        resp = client.post(f'/product/delete/{pid}', follow_redirects=True)
+        assert resp.status_code == 200
+        assert db.session.get(Product, pid) is None
+
+    def test_card91_types_api_no_key(self, client, admin_user, shop):
+        """未配置91卡券密钥时获取卡种列表返回错误"""
+        login(client, 'admin', 'admin123')
+        resp = client.get(f'/product/api/card91-types/{shop.id}')
+        data = json.loads(resp.data)
+        assert data['success'] is False
+        assert '密钥' in data['message']
+
+
+# ---- 订单事件日志测试 ----
+
+class TestOrderEvent:
+    def test_order_event_model(self, app, db, order):
+        """测试订单事件模型"""
+        from app.models.order_event import OrderEvent
+        event = OrderEvent(
+            order_id=order.id,
+            order_no=order.order_no,
+            event_type='order_created',
+            event_desc='订单创建测试',
+            result='info',
+        )
+        db.session.add(event)
+        db.session.commit()
+
+        assert event.id is not None
+        assert event.event_type_label == '📦 订单创建'
+        d = event.to_dict()
+        assert d['event_type'] == 'order_created'
+        assert d['result'] == 'info'
+
+    def test_order_detail_html_with_events(self, client, admin_user, db, order):
+        """订单详情弹窗HTML包含事件日志"""
+        from app.models.order_event import OrderEvent
+        event = OrderEvent(
+            order_id=order.id,
+            order_no=order.order_no,
+            event_type='notify_success',
+            event_desc='通知京东成功',
+            result='success',
+        )
+        db.session.add(event)
+        db.session.commit()
+
+        login(client, 'admin', 'admin123')
+        resp = client.get(f'/order/{order.id}/detail-html')
+        assert resp.status_code == 200
+        assert '通知京东成功'.encode() in resp.data
+
+    def test_shop_model_card91_fields(self, app, db, shop):
+        """店铺模型包含91卡券字段"""
+        shop.card91_api_key = 'test_api_key'
+        shop.card91_api_secret = 'test_secret'
+        db.session.commit()
+        assert shop.card91_api_key == 'test_api_key'
+        d = shop.to_dict()
+        # to_dict不暴露密钥
+        assert 'auto_deliver' not in d
+
+    def test_shop_form_no_auto_deliver(self, client, admin_user, shop):
+        """编辑店铺时不再有auto_deliver字段"""
+        login(client, 'admin', 'admin123')
+        resp = client.get(f'/shop/edit/{shop.id}')
+        assert resp.status_code == 200
+        # 不应有发货方式选择器
+        assert b'auto_deliver' not in resp.data
+        # 不应有阿奇索配置
+        assert '阿奇索'.encode() not in resp.data
+        # 应有91卡券配置
+        assert '91卡券'.encode() in resp.data

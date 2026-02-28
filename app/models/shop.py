@@ -24,13 +24,18 @@ class Shop(db.Model):
     general_callback_url = db.Column(db.String(500), comment='通用交易回调地址')
     general_api_url = db.Column(db.String(500), comment='通用交易接口地址')
 
-    # 阿奇索配置
-    agiso_enabled = db.Column(db.SmallInteger, default=0, comment='是否启用阿奇索：0=否 1=是')
-    agiso_host = db.Column(db.String(100), comment='阿奇索主机地址')
-    agiso_port = db.Column(db.Integer, comment='阿奇索端口')
-    agiso_app_id = db.Column(db.String(100), comment='阿奇索应用ID')
-    agiso_app_secret = db.Column(db.String(500), comment='阿奇索应用密钥')
-    agiso_access_token = db.Column(db.String(500), comment='阿奇索访问令牌')
+    # 阿奇索配置（已废弃，保留字段兼容旧数据）
+    agiso_enabled = db.Column(db.SmallInteger, default=0, comment='阿奇索已废弃')
+    agiso_host = db.Column(db.String(100), comment='阿奇索已废弃')
+    agiso_port = db.Column(db.Integer, comment='阿奇索已废弃')
+    agiso_app_id = db.Column(db.String(100), comment='阿奇索已废弃')
+    agiso_app_secret = db.Column(db.String(500), comment='阿奇索已废弃')
+    agiso_access_token = db.Column(db.String(500), comment='阿奇索已废弃')
+
+    # 91卡券配置（每个店铺单独配置）
+    card91_api_url = db.Column(db.String(500), comment='91卡券API地址')
+    card91_api_key = db.Column(db.String(200), comment='91卡券API密钥')
+    card91_api_secret = db.Column(db.String(500), comment='91卡券API签名密钥')
 
     # 订单通知配置
     notify_enabled = db.Column(db.SmallInteger, default=0, comment='是否启用订单通知：0=否 1=是')
@@ -38,8 +43,8 @@ class Shop(db.Model):
     dingtalk_secret = db.Column(db.String(500), comment='钉钉机器人加签密钥')
     wecom_webhook = db.Column(db.String(500), comment='企业微信机器人Webhook地址')
 
-    # 发货方式
-    auto_deliver = db.Column(db.SmallInteger, default=0, comment='发货方式：0=手动发货 1=自动发货')
+    # 发货方式（已废弃，默认全部手动发货）
+    auto_deliver = db.Column(db.SmallInteger, default=0, comment='发货方式已废弃，保留字段兼容旧数据')
 
     # 店铺状态
     is_enabled = db.Column(db.SmallInteger, default=1, comment='是否启用：0=禁用 1=启用')
@@ -64,10 +69,6 @@ class Shop(db.Model):
     def notify_status_label(self):
         return '已启用' if self.notify_enabled == 1 else '未启用'
 
-    @property
-    def auto_deliver_label(self):
-        return '自动发货' if self.auto_deliver == 1 else '手动发货'
-
     def to_dict(self):
         return {
             'id': self.id,
@@ -77,7 +78,6 @@ class Shop(db.Model):
             'shop_type_label': self.shop_type_label,
             'is_enabled': self.is_enabled,
             'notify_enabled': self.notify_enabled,
-            'auto_deliver': self.auto_deliver,
             'expire_time': self.expire_time.strftime('%Y-%m-%d %H:%M:%S') if self.expire_time else None,
             'create_time': self.create_time.strftime('%Y-%m-%d %H:%M:%S') if self.create_time else None,
         }

@@ -20,13 +20,9 @@ from app.services.jd_general import (
     callback_general_card_deliver,
     callback_general_refund,
 )
-from app.services.agiso import (
-    agiso_auto_deliver,
-    agiso_game_direct_deliver,
-    agiso_game_card_deliver,
-    agiso_general_deliver,
-)
 import logging
+
+# 注意：阿奇索（Agiso）相关功能已删除，系统统一使用91卡券接口自动发货。
 
 
 logger = logging.getLogger(__name__)
@@ -445,10 +441,14 @@ def notify_refund(order_id):
         return jsonify(success=False, message=f'退款通知失败：{str(e)}')
 
 
-@order_bp.route('/agiso-deliver/<int:order_id>', methods=['POST'])
+@order_bp.route('/<int:order_id>/card91-deliver', methods=['POST'])
 @login_required
-def agiso_deliver(order_id):
-    """使用阿奇索自动发货"""
+def card91_deliver(order_id):
+    """91卡券自动取卡发货。
+
+    根据订单SKU匹配商品配置，从91卡券仓库自动提取卡密并回调京东。
+    仅支持卡密订单（order_type=2）。
+    """
     order = db.session.get(Order, order_id)
     if not order:
         return jsonify(success=False, message='订单不存在')
@@ -459,24 +459,113 @@ def agiso_deliver(order_id):
     if not current_user.has_shop_permission(order.shop_id):
         return jsonify(success=False, message='无操作权限'), 403
 
+    if order.order_type != 2:
+        return jsonify(success=False, message='91卡券只支持卡密订单类型')
+
     shop = order.shop
     if not shop:
         return jsonify(success=False, message='店铺不存在')
-    
-    # 调用阿奇索自动发货服务
-    success, message, data = agiso_auto_deliver(shop, order)
-    
-    if success:
-        order.order_status = 2
-        order.notify_status = NOTIFY_STATUS_SUCCESS
-        order.notify_time = datetime.now()
+    if not shop.card91_api_key:
+        return jsonify(success=False, message='该店铺未配置91卡券API密钥')
+
+    # 根据SKU查找商品配置
+    from app.models.product import Product
+    from app.models.order_event import OrderEvent
+    from app.services.card91 import card91_auto_deliver
+    import json as json_mod
+
+    product = None
+    if order.sku_id:
+        product = Product.query.filter_by(
+            shop_id=shop.id, sku_id=order.sku_id, is_enabled=1, deliver_type=1
+        ).first()
+    if not product and order.product_info:
+        # 按商品名称模糊匹配（截取前20字符防止过长，使用参数化查询）
+        keyword = order.product_info[:20]
+        product = Product.query.filter_by(
+            shop_id=shop.id, deliver_type=1, is_enabled=1
+        ).filter(Product.product_name.contains(keyword)).first()
+
+    if not product:
+        return jsonify(success=False, message='未找到匹配的91卡券商品配置，请先在商品管理中设置')
+
+    # 从91卡券提卡
+    ok, msg, cards = card91_auto_deliver(shop, order, product)
+
+    # 记录提卡事件
+    fetch_event = OrderEvent(
+        order_id=order.id,
+        order_no=order.order_no,
+        event_type='card91_fetch',
+        event_desc=f'91卡券提卡：{msg}',
+        event_data=json_mod.dumps({'product_name': product.product_name,
+                                    'card_type_id': product.card91_card_type_id,
+                                    'quantity': order.quantity,
+                                    'success': ok}, ensure_ascii=False),
+        operator=current_user.username,
+        result='success' if ok else 'failed',
+    )
+    db.session.add(fetch_event)
+
+    if not ok:
         db.session.commit()
-        _log_operation(current_user, 'agiso_deliver', 'order', order.id,
-                       f'对订单 {order.jd_order_no} 执行了阿奇索发货操作')
-        logger.info(f"订单 {order.order_no} 阿奇索发货成功")
-        return jsonify(success=True, message=message)
-    else:
-        return jsonify(success=False, message=message)
+        return jsonify(success=False, message=msg)
+
+    # 保存卡密到订单
+    order.set_card_info(cards)
+    db.session.commit()
+
+    # 回调京东通知发货
+    try:
+        if shop.shop_type == 1:
+            success, callback_msg = callback_game_card_deliver(shop, order, cards)
+        else:
+            success, callback_msg = callback_general_card_deliver(shop, order, cards)
+
+        if success:
+            order.order_status = 2
+            order.deliver_time = datetime.now()
+            order.notify_status = NOTIFY_STATUS_SUCCESS
+            order.notify_time = datetime.now()
+
+            # 记录发卡成功事件
+            deliver_event = OrderEvent(
+                order_id=order.id,
+                order_no=order.order_no,
+                event_type='card91_deliver',
+                event_desc=f'91卡券发卡成功，共{len(cards)}张',
+                event_data=json_mod.dumps({'cards_count': len(cards),
+                                            'callback_msg': callback_msg}, ensure_ascii=False),
+                operator=current_user.username,
+                result='success',
+            )
+            db.session.add(deliver_event)
+            db.session.commit()
+
+            _log_operation(current_user, 'card91_deliver', 'order', order.id,
+                           f'91卡券自动发卡：订单 {order.jd_order_no}，共{len(cards)}张')
+            return jsonify(success=True, message=f'91卡券发卡成功，共{len(cards)}张卡密已发货')
+        else:
+            order.notify_status = NOTIFY_STATUS_FAILED
+
+            # 记录发卡失败事件
+            fail_event = OrderEvent(
+                order_id=order.id,
+                order_no=order.order_no,
+                event_type='error',
+                event_desc=f'91卡券回调失败：{callback_msg}',
+                operator=current_user.username,
+                result='failed',
+            )
+            db.session.add(fail_event)
+            db.session.commit()
+            return jsonify(success=False, message=f'卡密已提取但回调京东失败：{callback_msg}')
+
+    except Exception as e:
+        logger.error(f'91卡券发货回调异常：{e}')
+        order.notify_status = NOTIFY_STATUS_FAILED
+        db.session.commit()
+        return jsonify(success=False, message=f'回调失败：{str(e)}')
 
 
 @order_bp.route('/<int:order_id>/debug-success', methods=['POST'])
@@ -582,10 +671,19 @@ def batch_notify_success():
 @order_bp.route('/<int:order_id>/detail-html', methods=['GET'])
 @login_required
 def order_detail_html(order_id):
-    """返回订单详情HTML片段（用于弹窗）"""
+    """返回订单详情HTML片段（用于弹窗），包含订单事件日志。"""
     order = db.session.get(Order, order_id)
     if not order:
         return '<div class="alert alert-error">订单不存在</div>', 404
-    
+
+    # 加载订单事件日志（按时间倒序）
+    try:
+        from app.models.order_event import OrderEvent
+        events = OrderEvent.query.filter_by(order_id=order.id).order_by(
+            OrderEvent.create_time.desc()
+        ).limit(50).all()
+    except Exception:
+        events = []
+
     # 渲染详情页模板的主体部分（不包含外层布局）
-    return render_template('order/detail_modal.html', order=order)
+    return render_template('order/detail_modal.html', order=order, events=events)

@@ -6,7 +6,7 @@
 <div class="card mb-4" style="background: #f0f8ff; border-left: 4px solid #1890ff;">
     <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
         <span>📋 提交给京东官方的固定接口信息</span>
-        <button type="button" class="btn btn-sm" onclick="copyAllInfo()" style="background: #52c41a; color: white;">📑 一���复制全部</button>
+        <button type="button" class="btn btn-sm" onclick="copyAllInfo()" style="background: #52c41a; color: white;">📑 一键复制全部</button>
     </div>
     
     <div class="alert alert-warning mb-3" style="background: #fff7e6; border: 1px solid #ffd591; padding: 10px; border-radius: 4px;">
@@ -225,13 +225,6 @@ function showToast(message) {
                 </select>
             </div>
             <div class="form-group">
-                <label>发货方式</label>
-                <select name="auto_deliver" class="form-control">
-                    <option value="0" {{ 'selected' if not shop or shop.auto_deliver == 0 }}>手动发货</option>
-                    <option value="1" {{ 'selected' if shop and shop.auto_deliver == 1 }}>自动发货</option>
-                </select>
-            </div>
-            <div class="form-group">
                 <label>到期时间</label>
                 <input type="datetime-local" name="expire_time" class="form-control"
                        value="{{ shop.expire_time.strftime('%Y-%m-%dT%H:%M') if shop and shop.expire_time else '' }}">
@@ -290,56 +283,34 @@ function showToast(message) {
             <input type="text" name="general_api_url" class="form-control" value="{{ shop.general_api_url or 'https://api.jd-general.com/v1' if shop else 'https://api.jd-general.com/v1' }}" placeholder="默认: https://api.jd-general.com/v1">
         </div>
 
-        <div class="section-title">🔌 阿奇索配置</div>
-        <div class="alert" style="background:#fff8e1;border:1px solid #ffc107;padding:12px;border-radius:4px;margin-bottom:12px;font-size:13px;">
-            <b>📋 AccessToken获取方法：</b><br>
-            1. 在<a href="https://open.agiso.com/#/my/application/app-list" target="_blank">阿奇索开放平台</a>创建应用，获取AppID和AppSecret<br>
-            2. 将AppID告知商家，商家在<a href="https://aldsJd.agiso.com/#/open/authorize" target="_blank">授权页面</a>授权后获得AccessToken<br>
-            3. 商家将AccessToken复制后填入下方字段<br>
-            <small class="text-muted">注意：AccessToken有效期与商家购买阿奇索的使用时间一致</small>
+        <div class="section-title">🎫 91卡券 API配置 <small class="text-muted">(每个店铺单独设置)</small></div>
+        <div class="alert" style="background:#e6f7ff;border:1px solid #91d5ff;padding:12px;border-radius:4px;margin-bottom:12px;font-size:13px;">
+            <b>📋 91卡券对接说明：</b><br>
+            • 91卡券对应 <strong>卡密订单</strong> 类型，系统收到京东订单后可自动从91卡券提取卡密发货<br>
+            • 直充接口预留，后续对接直冲货源方<br>
+            • 在 <a href="{{ url_for('product.product_list') }}" target="_blank">商品管理</a> 页面可为每个SKU设置对应的91卡券卡种<br>
+            • 接入说明请参考91卡券开放平台文档
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label>启用阿奇索</label>
-                <select name="agiso_enabled" class="form-control">
-                    <option value="0" {{ 'selected' if not shop or shop.agiso_enabled == 0 }}>否</option>
-                    <option value="1" {{ 'selected' if shop and shop.agiso_enabled == 1 }}>是</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>主机地址 <small class="text-muted">(留空使用官方地址)</small></label>
-                <input type="text" name="agiso_host" class="form-control" value="{{ shop.agiso_host or '' if shop else '' }}" placeholder="gw-api.agiso.com（默认）">
-            </div>
-            <div class="form-group">
-                <label>端口 <small class="text-muted">(留空使用443)</small></label>
-                <input type="number" name="agiso_port" class="form-control" value="{{ shop.agiso_port or '' if shop else '' }}" placeholder="443">
+                <label>API地址 <small class="text-muted">(选填，默认官方地址)</small></label>
+                <input type="text" name="card91_api_url" class="form-control" value="{{ shop.card91_api_url or '' if shop else '' }}" placeholder="https://api.91kaquan.com">
             </div>
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label>应用ID（AppId）</label>
-                <input type="text" name="agiso_app_id" class="form-control" value="{{ shop.agiso_app_id or '' if shop else '' }}" placeholder="在阿奇索开放平台获取">
+                <label>API密钥 <small class="text-muted">(91卡券后台获取)</small></label>
+                <input type="text" name="card91_api_key" class="form-control" value="{{ shop.card91_api_key or '' if shop else '' }}" placeholder="请填写91卡券API密钥">
             </div>
             <div class="form-group">
-                <label>应用密钥（AppSecret）</label>
-                <input type="text" name="agiso_app_secret" class="form-control" value="{{ shop.agiso_app_secret or '' if shop else '' }}" placeholder="在阿奇索开放平台获取">
-            </div>
-            <div class="form-group">
-                <label>访问令牌（AccessToken）
-                    <small><a href="https://aldsJd.agiso.com/#/open/authorize" target="_blank">→ 授权页面</a></small>
-                </label>
-                <div style="display:flex;gap:8px;">
-                    <input type="text" name="agiso_access_token" class="form-control" value="{{ shop.agiso_access_token or '' if shop else '' }}" placeholder="商家授权后获取">
-                    {% if shop %}
-                    <button type="button" class="btn btn-sm btn-secondary" onclick="verifyAgisoToken({{ shop.id }})">验证</button>
-                    {% endif %}
-                </div>
+                <label>API签名密钥 <small class="text-muted">(91卡券后台获取)</small></label>
+                <input type="password" name="card91_api_secret" class="form-control" value="{{ shop.card91_api_secret or '' if shop else '' }}" placeholder="请填写91卡券API签名密钥">
             </div>
         </div>
-        {% if shop and shop.agiso_enabled %}
+        {% if shop and shop.card91_api_key %}
         <div style="margin-bottom:12px;">
-            <button type="button" class="btn btn-sm btn-info" onclick="queryAgisoBalance({{ shop.id }})">💰 查询余额</button>
-            <span id="agiso-balance-result" style="margin-left:10px;font-weight:bold;"></span>
+            <button type="button" class="btn btn-sm btn-info" onclick="testCard91Api({{ shop.id }})">🔍 测试91卡券连接</button>
+            <span id="card91-test-result" style="margin-left:10px;font-weight:bold;"></span>
         </div>
         {% endif %}
 
@@ -401,31 +372,23 @@ function testNotification(shopId, type) {
     });
 }
 
-function verifyAgisoToken(shopId) {
-    fetch('/shop/agiso-verify-token', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({shop_id: shopId})
-    })
-    .then(res => res.json())
-    .then(data => {
-        alert(data.success ? '✅ Token有效！' + data.message : '❌ Token无效：' + data.message);
-    });
-}
-
-function queryAgisoBalance(shopId) {
-    const el = document.getElementById('agiso-balance-result');
-    el.textContent = '查询中...';
-    fetch('/shop/agiso-balance/' + shopId)
+function testCard91Api(shopId) {
+    const el = document.getElementById('card91-test-result');
+    el.textContent = '测试中...';
+    fetch('/shop/card91-test/' + shopId)
     .then(res => res.json())
     .then(data => {
         if (data.success) {
-            el.textContent = '💰 ' + data.message;
+            el.textContent = '✅ 连接成功！' + (data.message || '');
             el.style.color = '#28a745';
         } else {
             el.textContent = '❌ ' + data.message;
             el.style.color = '#dc3545';
         }
+    })
+    .catch(() => {
+        el.textContent = '❌ 请求失败，请检查网络';
+        el.style.color = '#dc3545';
     });
 }
 </script>

@@ -18,6 +18,8 @@ def create_app(config_class=None):
     login_manager.init_app(app)
 
     from app.models.user import User
+    # 导入所有模型以确保 db.create_all() 能正确创建所有表
+    from app.models import Product, OrderEvent  # noqa: F401
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -34,7 +36,7 @@ def create_app(config_class=None):
     from app.routes.jd_general_api import jd_general_api_bp
     from app.routes.operation_log import operation_log_bp
     from app.routes.api_log import api_log_bp
-    from app.routes.agiso_push import agiso_push_bp
+    from app.routes.product import product_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(shop_bp, url_prefix='/shop')
@@ -47,7 +49,7 @@ def create_app(config_class=None):
     app.register_blueprint(jd_general_api_bp, url_prefix='/api/general')
     app.register_blueprint(operation_log_bp, url_prefix='/operation-log')
     app.register_blueprint(api_log_bp, url_prefix='/api-log')
-    app.register_blueprint(agiso_push_bp, url_prefix='/api/agiso')
+    app.register_blueprint(product_bp, url_prefix='/product')
 
     # API日志中间件 - 记录所有 /api/ 请求
     @app.after_request

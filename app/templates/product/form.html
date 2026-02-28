@@ -1,0 +1,278 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ '编辑商品配置' if product else '新建商品配置' }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-title">{{ '✏️ 编辑商品配置' if product else '🛍️ 新建商品配置' }}</div>
+
+    <div class="alert alert-info mb-3" style="background:#e6f7ff;border:1px solid #91d5ff;padding:12px;border-radius:4px;font-size:13px;">
+        <strong>💡 配置说明：</strong><br>
+        • 为每个京东商品SKU设置对应的自动发货方式<br>
+        • 选择 <strong>91卡券卡密</strong> 后，收到该SKU的订单时系统自动从91卡券仓库提取卡密发货<br>
+        • <strong>SKU ID</strong> 用于精确匹配京东推送过来的订单（不填则只匹配商品名称）<br>
+        • 直充API方式预留，后续对接货源方后开放
+    </div>
+
+    <form method="POST" id="productForm">
+        <!-- 基本信息 -->
+        <div class="section-title">📦 基本信息</div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>所属店铺 *</label>
+                <select name="shop_id" id="shopSelect" class="form-control" 
+                        onchange="onShopChange()" required
+                        {{ 'disabled' if product }}>
+                    <option value="">请选择店铺</option>
+                    {% for shop in shops %}
+                    <option value="{{ shop.id }}" 
+                            data-has-card91="{{ '1' if shop.card91_api_key else '0' }}"
+                            {{ 'selected' if (product and product.shop_id == shop.id) or (not product and default_shop_id == shop.id) }}>
+                        {{ shop.shop_name }}
+                        {% if shop.card91_api_key %}🎫{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% if product %}
+                <input type="hidden" name="shop_id" value="{{ product.shop_id }}">
+                {% endif %}
+            </div>
+            <div class="form-group">
+                <label>商品名称 *</label>
+                <input type="text" name="product_name" class="form-control" 
+                       value="{{ product.product_name if product else '' }}" 
+                       required placeholder="例如：爱奇艺黄金会员月卡">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>京东商品ID <small class="text-muted">（选填，用于标识商品）</small></label>
+                <input type="text" name="jd_product_id" class="form-control" 
+                       value="{{ product.jd_product_id or '' if product else '' }}" 
+                       placeholder="例如：100011935867">
+            </div>
+            <div class="form-group">
+                <label>SKU ID <small class="text-muted">（精确匹配订单，建议填写）</small></label>
+                <input type="text" name="sku_id" class="form-control" 
+                       value="{{ product.sku_id or '' if product else '' }}" 
+                       placeholder="例如：5008077">
+            </div>
+            <div class="form-group">
+                <label>套餐/规格名称</label>
+                <input type="text" name="sku_name" class="form-control" 
+                       value="{{ product.sku_name or '' if product else '' }}" 
+                       placeholder="例如：月卡 / 季卡 / 年卡">
+            </div>
+        </div>
+
+        <!-- 发货方式 -->
+        <div class="section-title">🚚 发货方式配置</div>
+        <div class="form-group">
+            <label>发货方式 *</label>
+            <select name="deliver_type" id="deliverTypeSelect" class="form-control" 
+                    onchange="onDeliverTypeChange()" style="width:auto;">
+                <option value="0" {{ 'selected' if not product or product.deliver_type == 0 }}>👋 手动发货</option>
+                <option value="1" {{ 'selected' if product and product.deliver_type == 1 }}>🎫 91卡券卡密（自动提卡）</option>
+                <option value="2" {{ 'selected' if product and product.deliver_type == 2 }}>⚡ 直充API（预留）</option>
+            </select>
+        </div>
+
+        <!-- 91卡券配置区域 -->
+        <div id="card91Section" style="{{ '' if (product and product.deliver_type == 1) else 'display:none;' }}">
+            <div class="card mb-3" style="background:#f6ffed;border:1px solid #b7eb8f;padding:16px;border-radius:4px;">
+                <div style="font-weight:bold;margin-bottom:12px;">🎫 91卡券卡种配置</div>
+                
+                <div id="card91Notice" style="display:none;background:#fff7e6;border:1px solid #ffd591;padding:8px;border-radius:4px;margin-bottom:12px;font-size:13px;">
+                    ⚠️ 该店铺未配置91卡券API密钥，请先在 
+                    <a href="{{ url_for('shop.shop_list') }}" target="_blank">店铺配置</a> 
+                    中填写91卡券API信息。
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>卡种ID <small class="text-muted">（91卡券仓库中的卡种唯一标识）</small></label>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <input type="text" name="card91_card_type_id" id="card91CardTypeId" 
+                                   class="form-control" 
+                                   value="{{ product.card91_card_type_id or '' if product else '' }}" 
+                                   placeholder="填写卡种ID，或点击右侧按钮自动获取">
+                            <button type="button" class="btn btn-sm btn-info" onclick="loadCard91Types()">
+                                🔄 获取卡种列表
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>卡种名称</label>
+                        <input type="text" name="card91_card_type_name" id="card91CardTypeName" 
+                               class="form-control" 
+                               value="{{ product.card91_card_type_name or '' if product else '' }}" 
+                               placeholder="卡种名称（自动填入或手动填写）">
+                    </div>
+                </div>
+
+                <!-- 卡种选择下拉 -->
+                <div id="card91TypesContainer" style="display:none;margin-bottom:12px;">
+                    <label>从91卡券仓库选择卡种：</label>
+                    <select id="card91TypesSelect" class="form-control" onchange="onCard91TypeSelect()">
+                        <option value="">-- 请选择卡种 --</option>
+                    </select>
+                    <div id="card91StockInfo" style="margin-top:6px;font-size:13px;color:#666;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>方案ID <small class="text-muted">（选填，91卡券方案ID）</small></label>
+                    <input type="text" name="card91_plan_id" class="form-control" 
+                           value="{{ product.card91_plan_id or '' if product else '' }}" 
+                           placeholder="留空表示不绑定方案">
+                </div>
+
+                <div class="alert" style="background:#e6f7ff;border:1px solid #91d5ff;padding:10px;border-radius:4px;font-size:12px;margin-top:8px;">
+                    <strong>📋 使用说明：</strong><br>
+                    1. 点击「获取卡种列表」按钮，系统自动从91卡券仓库获取所有卡种<br>
+                    2. 从下拉列表中选择对应的卡种，卡种ID和名称会自动填入<br>
+                    3. 也可以手动填写卡种ID<br>
+                    4. 配置完成后，系统收到该SKU的订单时将自动提取卡密发货
+                </div>
+            </div>
+        </div>
+
+        <!-- 直充API预留区域 -->
+        <div id="directChargeSection" style="{{ '' if (product and product.deliver_type == 2) else 'display:none;' }}">
+            <div class="card mb-3" style="background:#f9f9f9;border:1px solid #d9d9d9;padding:16px;border-radius:4px;">
+                <div style="font-weight:bold;margin-bottom:12px;">⚡ 直充API配置（预留）</div>
+                <div class="alert alert-warning" style="background:#fff7e6;border:1px solid #ffd591;padding:10px;border-radius:4px;font-size:13px;">
+                    <strong>⚠️ 功能预留：</strong>直充API接口正在对接中，后续版本将支持多种直充货源方。<br>
+                    当前选择此方式的订单将以手动发货处理。
+                </div>
+                <div class="form-group">
+                    <label>直充API类型 <small class="text-muted">（预留）</small></label>
+                    <input type="text" name="direct_charge_api_type" class="form-control" 
+                           value="{{ product.direct_charge_api_type or '' if product else '' }}" 
+                           placeholder="后续版本支持" disabled>
+                </div>
+            </div>
+        </div>
+
+        <!-- 状态与备注 -->
+        <div class="section-title">⚙️ 其他设置</div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>状态</label>
+                <select name="is_enabled" class="form-control" style="width:auto;">
+                    <option value="1" {{ 'selected' if not product or product.is_enabled == 1 }}>启用</option>
+                    <option value="0" {{ 'selected' if product and product.is_enabled == 0 }}>禁用</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>备注</label>
+            <textarea name="remark" class="form-control" rows="2" placeholder="可填写商品备注信息">{{ product.remark or '' if product else '' }}</textarea>
+        </div>
+
+        <div class="flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">保存配置</button>
+            <a href="{{ url_for('product.product_list') }}" class="btn">取消</a>
+        </div>
+    </form>
+</div>
+
+<script>
+// 当前选中的店铺ID
+var currentShopId = {{ (product.shop_id if product else (default_shop_id or 0)) or 0 }};
+
+function onShopChange() {
+    var select = document.getElementById('shopSelect');
+    if (!select) return;
+    currentShopId = parseInt(select.value) || 0;
+    
+    // 检查店铺是否配置了91卡券
+    var option = select.options[select.selectedIndex];
+    var hasCard91 = option && option.getAttribute('data-has-card91') === '1';
+    
+    var notice = document.getElementById('card91Notice');
+    if (notice) {
+        notice.style.display = hasCard91 ? 'none' : 'block';
+    }
+    
+    // 清空已加载的卡种列表
+    resetCard91Types();
+}
+
+function onDeliverTypeChange() {
+    var val = document.getElementById('deliverTypeSelect').value;
+    document.getElementById('card91Section').style.display = val === '1' ? '' : 'none';
+    document.getElementById('directChargeSection').style.display = val === '2' ? '' : 'none';
+    
+    // 检查91卡券配置
+    if (val === '1') {
+        onShopChange();
+    }
+}
+
+function loadCard91Types() {
+    if (!currentShopId) {
+        alert('请先选择店铺');
+        return;
+    }
+    
+    var container = document.getElementById('card91TypesContainer');
+    var select = document.getElementById('card91TypesSelect');
+    var stockInfo = document.getElementById('card91StockInfo');
+    
+    stockInfo.textContent = '正在获取卡种列表...';
+    container.style.display = '';
+    
+    fetch('/product/api/card91-types/' + currentShopId)
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (data.success && data.data && data.data.length > 0) {
+            select.innerHTML = '<option value="">-- 请选择卡种（共' + data.data.length + '个）--</option>';
+            data.data.forEach(function(item) {
+                var opt = document.createElement('option');
+                opt.value = item.id;
+                opt.textContent = item.name + '（库存：' + item.stock + '张）';
+                opt.setAttribute('data-name', item.name);
+                opt.setAttribute('data-stock', item.stock);
+                select.appendChild(opt);
+            });
+            stockInfo.textContent = '✅ 成功获取' + data.data.length + '个卡种';
+            stockInfo.style.color = '#52c41a';
+        } else {
+            select.innerHTML = '<option value="">获取失败或无卡种数据</option>';
+            stockInfo.textContent = '❌ ' + (data.message || '获取失败');
+            stockInfo.style.color = '#dc3545';
+        }
+    })
+    .catch(function() {
+        stockInfo.textContent = '❌ 请求失败，请检查网络';
+        stockInfo.style.color = '#dc3545';
+    });
+}
+
+function onCard91TypeSelect() {
+    var select = document.getElementById('card91TypesSelect');
+    var option = select.options[select.selectedIndex];
+    if (!option || !option.value) return;
+    
+    document.getElementById('card91CardTypeId').value = option.value;
+    document.getElementById('card91CardTypeName').value = option.getAttribute('data-name') || '';
+    
+    var stockInfo = document.getElementById('card91StockInfo');
+    var stock = option.getAttribute('data-stock') || '0';
+    stockInfo.textContent = '当前库存：' + stock + '张';
+    stockInfo.style.color = parseInt(stock) > 0 ? '#52c41a' : '#dc3545';
+}
+
+function resetCard91Types() {
+    var container = document.getElementById('card91TypesContainer');
+    if (container) container.style.display = 'none';
+    var select = document.getElementById('card91TypesSelect');
+    if (select) select.innerHTML = '<option value="">-- 请先选择店铺后获取 --</option>';
+}
+
+// 页面加载时初始化
+document.addEventListener('DOMContentLoaded', function() {
+    onDeliverTypeChange();
+});
+</script>
+{% endblock %}

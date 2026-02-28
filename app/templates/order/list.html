@@ -152,8 +152,8 @@
                                         {% if current_user.is_admin or current_user.can_refund %}
                                         <a href="javascript:void(0)" onclick="notifyRefund({{ order.id }})">💰 通知退款</a>
                                         {% endif %}
-                                        {% if (current_user.is_admin or current_user.can_deliver) and order.shop and order.shop.agiso_enabled %}
-                                        <a href="javascript:void(0)" onclick="agisoDeliver({{ order.id }})">🚚 阿奇索发货</a>
+                                        {% if (current_user.is_admin or current_user.can_deliver) and order.shop and order.shop.card91_api_key and order.order_type == 2 %}
+                                        <a href="javascript:void(0)" onclick="card91Deliver({{ order.id }})">🎫 91卡券自动发卡</a>
                                         {% endif %}
                                         <div class="dropdown-divider"></div>
                                         <div class="dropdown-submenu">
@@ -448,9 +448,9 @@ function notifyRefund(orderId) {
         });
 }
 
-function agisoDeliver(orderId) {
-    if (!confirm('确定要 Agiso 发货吗？')) return;
-    fetch('/order/' + orderId + '/agiso-deliver', { method: 'POST' })
+function card91Deliver(orderId) {
+    if (!confirm('确定要从91卡券自动取卡发货吗？')) return;
+    fetch('/order/' + orderId + '/card91-deliver', { method: 'POST' })
         .then(function(res) { return res.json(); })
         .then(function(data) {
             alert(data.success ? '✅ ' + data.message : '❌ ' + data.message);

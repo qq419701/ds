@@ -156,19 +156,49 @@
     </div>
     {% endif %}
 
-    <!-- 操作日志 -->
+    <!-- 订单事件日志 -->
     <div class="detail-section">
-        <h3>📜 操作日志</h3>
+        <h3>📜 订单事件日志</h3>
         <div class="log-container">
-            <div class="log-item">
-                <span class="log-time">{{ order.create_time.strftime('%Y-%m-%d %H:%M:%S') }}</span>
-                <span class="log-content">订单创建</span>
-            </div>
-            {% if order.card_info_parsed %}
-            <div class="log-item">
-                <span class="log-time">-</span>
-                <span class="log-content">已填写 {{ order.card_info_parsed|length }} 组卡密</span>
-            </div>
+            {% if events %}
+                {% for event in events %}
+                <div class="log-item" style="display:flex;gap:12px;align-items:flex-start;padding:6px 0;border-bottom:1px solid #f0f0f0;">
+                    <span class="log-time" style="min-width:150px;color:#666;font-size:12px;white-space:nowrap;">
+                        {{ event.create_time_beijing.strftime('%Y-%m-%d %H:%M:%S') if event.create_time_beijing else '-' }}
+                    </span>
+                    <span style="min-width:120px;">
+                        {% if event.result == 'success' %}
+                        <span class="badge badge-success">{{ event.event_type_label }}</span>
+                        {% elif event.result == 'failed' %}
+                        <span class="badge badge-danger">{{ event.event_type_label }}</span>
+                        {% else %}
+                        <span class="badge badge-info">{{ event.event_type_label }}</span>
+                        {% endif %}
+                    </span>
+                    <span class="log-content" style="flex:1;font-size:13px;">
+                        {{ event.event_desc or '' }}
+                        {% if event.operator and event.operator != '系统' %}
+                        <small class="text-muted">（操作人：{{ event.operator }}）</small>
+                        {% endif %}
+                    </span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <!-- 无事件记录时显示基本信息 -->
+                <div class="log-item" style="display:flex;gap:12px;padding:6px 0;">
+                    <span class="log-time" style="min-width:150px;color:#666;font-size:12px;">
+                        {{ order.create_time.strftime('%Y-%m-%d %H:%M:%S') }}
+                    </span>
+                    <span class="badge badge-info">📦 订单创建</span>
+                    <span class="log-content">订单已创建</span>
+                </div>
+                {% if order.card_info_parsed %}
+                <div class="log-item" style="display:flex;gap:12px;padding:6px 0;">
+                    <span class="log-time" style="min-width:150px;color:#666;font-size:12px;">-</span>
+                    <span class="badge badge-success">✅ 已有卡密</span>
+                    <span class="log-content">已填写 {{ order.card_info_parsed|length }} 组卡密</span>
+                </div>
+                {% endif %}
             {% endif %}
         </div>
     </div>
