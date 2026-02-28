@@ -480,9 +480,11 @@ def card91_deliver(order_id):
             shop_id=shop.id, sku_id=order.sku_id, is_enabled=1, deliver_type=1
         ).first()
     if not product and order.product_info:
+        # 按商品名称模糊匹配（截取前20字符防止过长，使用参数化查询）
+        keyword = order.product_info[:20]
         product = Product.query.filter_by(
             shop_id=shop.id, deliver_type=1, is_enabled=1
-        ).filter(Product.product_name.like(f'%{order.product_info[:20]}%')).first()
+        ).filter(Product.product_name.contains(keyword)).first()
 
     if not product:
         return jsonify(success=False, message='未找到匹配的91卡券商品配置，请先在商品管理中设置')

@@ -69,8 +69,13 @@ def _migrate_shop_table(db):
                 except Exception:
                     return
 
-            # 逐个添加缺失字段
+            # 逐个添加缺失字段（字段名和类型均来自本地白名单，无注入风险）
+            ALLOWED_COLUMNS = {
+                'card91_api_url', 'card91_api_key', 'card91_api_secret'
+            }
             for col_name, col_def in new_columns:
+                if col_name not in ALLOWED_COLUMNS:
+                    continue  # 安全白名单校验
                 if col_name not in existing_columns:
                     try:
                         conn.execute(db.text(f'ALTER TABLE shops ADD COLUMN {col_name} {col_def}'))

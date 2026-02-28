@@ -16,6 +16,9 @@ API认证方式：
 - 请求头：X-Api-Key: {api_key}
 - 签名：HMAC-SHA256 或 MD5（根据平台要求）
 
+默认API基础地址：https://api.91kaquan.com
+（可在店铺配置中自定义API地址覆盖默认值）
+
 注意：
 - 91卡券对应卡密订单类型（order_type=2）
 - 直充订单类型（order_type=1）由直充API处理（预留）

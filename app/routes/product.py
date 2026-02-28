@@ -85,9 +85,12 @@ def product_list():
     deliver_type = request.args.get('deliver_type', type=int)
     keyword = request.args.get('keyword', '').strip()
 
+    # deliver_type=-1 或未传表示不过滤（全部类型）
+    FILTER_ALL = -1
+
     if shop_id:
         query = query.filter(Product.shop_id == shop_id)
-    if deliver_type is not None and deliver_type != -1:
+    if deliver_type is not None and deliver_type != FILTER_ALL:
         query = query.filter(Product.deliver_type == deliver_type)
     if keyword:
         query = query.filter(
