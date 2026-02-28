@@ -10,8 +10,6 @@ data字段使用UTF-8字符集进行Base64编码，内含业务JSON数据。
 import base64
 import json
 import logging
-import secrets
-import string
 import uuid
 from datetime import datetime
 from flask import Blueprint, request, jsonify
@@ -173,20 +171,20 @@ def game_direct_order():
     db.session.commit()
     logger.info(f"直充订单接收成功: jd={jd_order_no}, local={order_no}, amount={order.amount}, account={order.produce_account}")
 
-    # 自动发货
-    if shop.auto_deliver == 1:
-        try:
-            if shop.agiso_enabled:
-                from app.services.agiso import agiso_auto_deliver
-                agiso_auto_deliver(shop, order)
-            else:
-                success, msg = callback_game_direct_success(shop, order)
-                if success:
-                    order.order_status = 2
-                    db.session.commit()
-                    logger.info(f"直充订单 {order_no} 自动发货完成")
-        except Exception as e:
-            logger.error(f"直充订单 {order_no} 自动发货失败: {e}")
+    # 记录订单创建事件
+    try:
+        from app.models.order_event import OrderEvent
+        create_event = OrderEvent(
+            order_id=order.id,
+            order_no=order.order_no,
+            event_type='order_created',
+            event_desc=f'游戏点卡直充订单创建，京东订单号：{jd_order_no}，金额：{order.amount/100:.2f}元，账号：{order.produce_account or "无"}',
+            result='info',
+        )
+        db.session.add(create_event)
+        db.session.commit()
+    except Exception as e:
+        logger.warning(f"记录订单创建事件失败: {e}")
 
     try:
         send_order_notification(order, shop)
@@ -313,27 +311,71 @@ def game_card_order():
     db.session.commit()
     logger.info(f"卡密订单接收成功: jd={jd_order_no}, local={order_no}, amount={order.amount}")
 
-    # 自动发货
-    if shop.auto_deliver == 1:
-        try:
-            if shop.agiso_enabled:
-                from app.services.agiso import agiso_auto_deliver
-                agiso_auto_deliver(shop, order)
-            else:
-                # 自动生成随机卡密
-                cards = []
-                for _ in range(order.quantity):
-                    card_no = 'AUTO' + ''.join(secrets.choice(string.digits) for _ in range(12))
-                    card_pwd = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(16))
-                    cards.append({'cardNo': card_no, 'cardPass': card_pwd})
+    # 记录订单创建事件
+    try:
+        from app.models.order_event import OrderEvent
+        create_event = OrderEvent(
+            order_id=order.id,
+            order_no=order.order_no,
+            event_type='order_created',
+            event_desc=f'游戏点卡卡密订单创建，京东订单号：{jd_order_no}，SKU：{order.sku_id or "无"}，数量：{order.quantity}',
+            result='info',
+        )
+        db.session.add(create_event)
+        db.session.commit()
+    except Exception as e:
+        logger.warning(f"记录订单创建事件失败: {e}")
+
+    # 91卡券自动发货（根据商品配置，deliver_type=1时自动提卡）
+    try:
+        from app.models.product import Product
+        from app.models.order_event import OrderEvent
+        product = None
+        if order.sku_id:
+            product = Product.query.filter_by(
+                shop_id=shop.id, sku_id=order.sku_id, is_enabled=1, deliver_type=1
+            ).first()
+        if product and shop.card91_api_key:
+            from app.services.card91 import card91_auto_deliver
+            ok, msg, cards = card91_auto_deliver(shop, order, product)
+            fetch_event = OrderEvent(
+                order_id=order.id,
+                order_no=order.order_no,
+                event_type='card91_fetch',
+                event_desc=f'91卡券自动提卡：{msg}',
+                result='success' if ok else 'failed',
+            )
+            db.session.add(fetch_event)
+            if ok:
                 order.set_card_info(cards)
-                success, msg = callback_game_card_deliver(shop, order, cards)
+                success, callback_msg = callback_game_card_deliver(shop, order, cards)
                 if success:
                     order.order_status = 2
-                db.session.commit()
-                logger.info(f"卡密订单 {order_no} 自动发货完成")
-        except Exception as e:
-            logger.error(f"卡密订单 {order_no} 自动发货失败: {e}")
+                    order.deliver_time = datetime.utcnow()
+                    order.notify_status = 1
+                    order.notify_time = datetime.utcnow()
+                    deliver_event = OrderEvent(
+                        order_id=order.id,
+                        order_no=order.order_no,
+                        event_type='card91_deliver',
+                        event_desc=f'91卡券自动发卡成功，共{len(cards)}张',
+                        result='success',
+                    )
+                    db.session.add(deliver_event)
+                    logger.info(f"卡密订单 {order_no} 91卡券自动发货完成")
+                else:
+                    order.notify_status = 2
+                    error_event = OrderEvent(
+                        order_id=order.id,
+                        order_no=order.order_no,
+                        event_type='error',
+                        event_desc=f'91卡券发卡回调失败：{callback_msg}',
+                        result='failed',
+                    )
+                    db.session.add(error_event)
+            db.session.commit()
+    except Exception as e:
+        logger.error(f"91卡券自动发货失败: {e}")
 
     try:
         send_order_notification(order, shop)

@@ -713,6 +713,48 @@ class TestProductRoutes:
         assert data['success'] is False
         assert '密钥' in data['message']
 
+    def test_get_shop_card91_config(self, client, admin_user, shop):
+        """获取店铺91卡券配置"""
+        login(client, 'admin', 'admin123')
+        resp = client.get(f'/product/api/shop-card91-config/{shop.id}')
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert 'card91_api_key' in data['data']
+
+    def test_save_shop_card91_config(self, client, admin_user, db, shop):
+        """保存店铺91卡券配置"""
+        login(client, 'admin', 'admin123')
+        resp = client.post(f'/product/api/save-shop-card91/{shop.id}',
+                           content_type='application/json',
+                           data=json.dumps({
+                               'card91_api_url': 'https://api.91kaquan.com',
+                               'card91_api_key': 'test_key_123',
+                               'card91_api_secret': 'test_secret_456',
+                           }))
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        # 验证数据已保存
+        db.session.refresh(shop)
+        assert shop.card91_api_key == 'test_key_123'
+        assert shop.card91_api_secret == 'test_secret_456'
+
+    def test_save_shop_card91_config_keeps_secret_if_empty(self, client, admin_user, db, shop):
+        """保存91卡券配置时，如果api_secret为空则保留原有值"""
+        shop.card91_api_secret = 'original_secret'
+        db.session.commit()
+        login(client, 'admin', 'admin123')
+        resp = client.post(f'/product/api/save-shop-card91/{shop.id}',
+                           content_type='application/json',
+                           data=json.dumps({
+                               'card91_api_key': 'new_key',
+                               'card91_api_secret': '',  # 空值不更新
+                           }))
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        db.session.refresh(shop)
+        assert shop.card91_api_key == 'new_key'
+        assert shop.card91_api_secret == 'original_secret'  # 原值保留
+
 
 # ---- 订单事件日志测试 ----
 
@@ -775,3 +817,46 @@ class TestOrderEvent:
         assert '阿奇索'.encode() not in resp.data
         # 应有91卡券配置
         assert '91卡券'.encode() in resp.data
+
+    def test_api_order_creates_event(self, client, db, shop):
+        """API创建订单时自动记录订单事件"""
+        from app.models.order_event import OrderEvent
+        resp = client.post('/api/order/create',
+                           content_type='application/json',
+                           data=json.dumps({
+                               'shop_code': 'TEST001',
+                               'jd_order_no': 'JD_EVENT_001',
+                               'order_type': 1,
+                               'amount': 5000,
+                               'quantity': 1,
+                               'product_info': '事件测试商品',
+                           }))
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        # 验证订单事件已记录
+        from app.models.order import Order
+        order = Order.query.filter_by(jd_order_no='JD_EVENT_001').first()
+        assert order is not None
+        events = OrderEvent.query.filter_by(order_id=order.id).all()
+        assert len(events) >= 1
+        assert any(e.event_type == 'order_created' for e in events)
+
+    def test_jd_game_card_order_without_product_config(self, client, db, shop):
+        """游戏点卡卡密订单到达时，无商品配置则保持手动发货状态"""
+        import base64
+        from app.models.order import Order
+        # 构建京东推送格式
+        biz = {'orderId': 'JD_GAME_CARD_001', 'skuId': 'SKU999', 'buyNum': 1,
+               'totalPrice': '10.00'}
+        data_b64 = base64.b64encode(json.dumps(biz).encode()).decode()
+        resp = client.post('/api/game/card', data={
+            'customerId': shop.game_customer_id or '',
+            'data': data_b64,
+        })
+        assert resp.status_code == 200
+        resp_data = json.loads(resp.data)
+        assert resp_data.get('retCode') == '100'
+        # 订单应已创建但状态为0（待处理）
+        order = Order.query.filter_by(jd_order_no='JD_GAME_CARD_001').first()
+        assert order is not None
+        assert order.order_status == 0  # 无商品配置，保持手动发货

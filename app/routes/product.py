@@ -237,6 +237,45 @@ def api_card91_stock(shop_id, card_type_id):
     return jsonify(success=ok, message=msg, stock=stock)
 
 
+@product_bp.route('/api/shop-card91-config/<int:shop_id>', methods=['GET'])
+@login_required
+def api_shop_card91_config(shop_id):
+    """获取店铺的91卡券配置（用于商品管理页面弹窗显示）。"""
+    shop = _check_shop_access(shop_id)
+    if not shop:
+        return jsonify(success=False, message='店铺不存在或无权限')
+    return jsonify(success=True, data={
+        'card91_api_url': shop.card91_api_url or '',
+        'card91_api_key': shop.card91_api_key or '',
+        'has_secret': bool(shop.card91_api_secret),
+    })
+
+
+@product_bp.route('/api/save-shop-card91/<int:shop_id>', methods=['POST'])
+@login_required
+def api_save_shop_card91(shop_id):
+    """从商品管理页面保存店铺的91卡券API配置。"""
+    shop = _check_shop_access(shop_id)
+    if not shop:
+        return jsonify(success=False, message='店铺不存在或无权限')
+
+    data = request.get_json() or {}
+    shop.card91_api_url = data.get('card91_api_url', '').strip() or None
+    shop.card91_api_key = data.get('card91_api_key', '').strip() or None
+    new_secret = data.get('card91_api_secret', '').strip()
+    if new_secret:
+        shop.card91_api_secret = new_secret
+
+    try:
+        db.session.commit()
+        _log_operation('save_card91_config', 'shop', shop.id,
+                       f'从商品管理页面更新店铺91卡券配置：{shop.shop_name}')
+        return jsonify(success=True, message='91卡券配置保存成功')
+    except Exception as e:
+        db.session.rollback()
+        return jsonify(success=False, message=f'保存失败：{e}')
+
+
 def _fill_product_fields(product, form):
     """从表单数据填充商品字段。"""
     product.product_name = form.get('product_name', '').strip()

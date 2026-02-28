@@ -120,39 +120,57 @@ def create_order():
         _save_api_log(shop.id, 500, '订单创建失败')
         return jsonify(success=False, message='订单创建失败'), 500
 
+    # 记录订单创建事件
+    try:
+        from app.models.order_event import OrderEvent
+        create_event = OrderEvent(
+            order_id=order.id,
+            order_no=order.order_no,
+            event_type='order_created',
+            event_desc=f'订单创建，京东订单号：{jd_order_no}，类型：{"直充" if order.order_type==1 else "卡密"}',
+            result='info',
+        )
+        db.session.add(create_event)
+        db.session.commit()
+    except Exception as e:
+        logger.warning(f"记录订单创建事件失败: {e}")
 
-    # 自动发货处理
-    if shop.auto_deliver == 1:
+    # 91卡券自动发货（卡密订单，根据商品配置deliver_type=1时自动提卡）
+    if order.order_type == 2:
         try:
-            if order.order_type == 1:
-                # 直充订单 - 自动回调成功
-                if shop.shop_type == 1:
-                    from app.services.jd_game import callback_game_direct_success
-                    callback_game_direct_success(shop, order)
-                else:
-                    from app.services.jd_general import callback_general_success
-                    callback_general_success(shop, order)
-                order.order_status = 2
-            else:
-                # 卡密订单 - 生成随机卡密并回调
-                import random, string
-                cards = []
-                for _i in range(order.quantity):
-                    card_no = 'AUTO' + ''.join(random.choices(string.digits, k=12))
-                    card_pwd = ''.join(random.choices(string.ascii_uppercase + string.digits, k=16))
-                    cards.append({'card_no': card_no, 'card_pwd': card_pwd})
-                order.set_card_info(cards)
-                if shop.shop_type == 1:
-                    from app.services.jd_game import callback_game_card_deliver
-                    callback_game_card_deliver(shop, order, cards)
-                else:
-                    from app.services.jd_general import callback_general_card_deliver
-                    callback_general_card_deliver(shop, order, cards)
-                order.order_status = 2
-            db.session.commit()
-            logger.info(f"订单 {order.order_no} 自动发货完成")
+            from app.models.product import Product
+            from app.models.order_event import OrderEvent
+            product = None
+            if order.sku_id:
+                product = Product.query.filter_by(
+                    shop_id=shop.id, sku_id=order.sku_id, is_enabled=1, deliver_type=1
+                ).first()
+            if product and shop.card91_api_key:
+                from app.services.card91 import card91_auto_deliver
+                from app.services.jd_game import callback_game_card_deliver
+                from app.services.jd_general import callback_general_card_deliver
+                ok, msg, cards = card91_auto_deliver(shop, order, product)
+                fetch_event = OrderEvent(
+                    order_id=order.id,
+                    order_no=order.order_no,
+                    event_type='card91_fetch',
+                    event_desc=f'91卡券自动提卡：{msg}',
+                    result='success' if ok else 'failed',
+                )
+                db.session.add(fetch_event)
+                if ok:
+                    order.set_card_info(cards)
+                    if shop.shop_type == 1:
+                        success, callback_msg = callback_game_card_deliver(shop, order, cards)
+                    else:
+                        success, callback_msg = callback_general_card_deliver(shop, order, cards)
+                    if success:
+                        order.order_status = 2
+                        order.notify_status = 1
+                        order.notify_time = datetime.utcnow()
+                db.session.commit()
         except Exception as e:
-            logger.error(f"订单 {order.order_no} 自动发货失败: {e}")
+            logger.error(f"91卡券自动发货失败: {e}")
 
     # 如果店铺启用了通知，发送订单通知
     try:

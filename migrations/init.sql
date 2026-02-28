@@ -183,6 +183,60 @@ CREATE TABLE IF NOT EXISTS operation_logs (
     INDEX idx_create_time (create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志表';
 
+-- 8. products table
+CREATE TABLE IF NOT EXISTS products (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    shop_id BIGINT NOT NULL COMMENT '所属店铺ID',
+
+    product_name VARCHAR(200) NOT NULL COMMENT '商品名称',
+    jd_product_id VARCHAR(100) COMMENT '京东商品ID',
+    sku_id VARCHAR(100) COMMENT '京东SKU ID',
+    sku_name VARCHAR(200) COMMENT 'SKU名称/套餐名称',
+
+    deliver_type TINYINT DEFAULT 0 COMMENT '发货方式：0=手动 1=91卡券卡密 2=直充API预留',
+
+    card91_card_type_id VARCHAR(100) COMMENT '91卡券卡种ID',
+    card91_card_type_name VARCHAR(200) COMMENT '91卡券卡种名称',
+    card91_plan_id VARCHAR(100) COMMENT '91卡券方案ID',
+
+    direct_charge_api_type VARCHAR(50) COMMENT '直充API类型（预留）',
+    direct_charge_api_config TEXT COMMENT '直充API配置JSON（预留）',
+
+    is_enabled TINYINT DEFAULT 1 COMMENT '是否启用：0=禁用 1=启用',
+    remark VARCHAR(500) COMMENT '备注',
+
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_shop_sku (shop_id, sku_id),
+    FOREIGN KEY (shop_id) REFERENCES shops(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='商品配置表';
+
+-- 9. order_events table
+CREATE TABLE IF NOT EXISTS order_events (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    order_id BIGINT NOT NULL COMMENT '订单ID',
+    order_no VARCHAR(64) COMMENT '系统订单号',
+
+    event_type VARCHAR(50) NOT NULL COMMENT '事件类型',
+    event_desc VARCHAR(500) COMMENT '事件描述',
+    event_data TEXT COMMENT '事件详细数据JSON',
+    operator VARCHAR(100) COMMENT '操作人',
+    result VARCHAR(20) DEFAULT 'info' COMMENT '事件结果：success/failed/info',
+
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_order (order_id),
+    INDEX idx_order_no (order_no),
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单事件日志表';
+
+-- Add card91 columns to shops table if not exists
+ALTER TABLE shops
+    ADD COLUMN IF NOT EXISTS card91_api_url VARCHAR(500) COMMENT '91卡券API地址',
+    ADD COLUMN IF NOT EXISTS card91_api_key VARCHAR(200) COMMENT '91卡券API密钥',
+    ADD COLUMN IF NOT EXISTS card91_api_secret VARCHAR(500) COMMENT '91卡券API签名密钥';
+
 -- Insert default admin user (password: admin123)
 INSERT INTO users (username, password_hash, name, role, can_view_order, can_deliver, can_refund, is_active)
 VALUES ('admin', 'scrypt:32768:8:1$placeholder$placeholder', '超级管理员', 'admin', 1, 1, 1, 1)

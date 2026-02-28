@@ -10,7 +10,7 @@
         • 为每个京东商品SKU设置对应的自动发货方式<br>
         • 选择 <strong>91卡券卡密</strong> 后，收到该SKU的订单时系统自动从91卡券仓库提取卡密发货<br>
         • <strong>SKU ID</strong> 用于精确匹配京东推送过来的订单（不填则只匹配商品名称）<br>
-        • 直充API方式预留，后续对接货源方后开放
+        • 不设置发货方式时默认为手动发货（通知成功/退款）
     </div>
 
     <form method="POST" id="productForm">
@@ -19,47 +19,64 @@
         <div class="form-row">
             <div class="form-group">
                 <label>所属店铺 *</label>
-                <select name="shop_id" id="shopSelect" class="form-control" 
-                        onchange="onShopChange()" required
-                        {{ 'disabled' if product }}>
-                    <option value="">请选择店铺</option>
-                    {% for shop in shops %}
-                    <option value="{{ shop.id }}" 
-                            data-has-card91="{{ '1' if shop.card91_api_key else '0' }}"
-                            {{ 'selected' if (product and product.shop_id == shop.id) or (not product and default_shop_id == shop.id) }}>
-                        {{ shop.shop_name }}
-                        {% if shop.card91_api_key %}🎫{% endif %}
-                    </option>
-                    {% endfor %}
-                </select>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <select name="shop_id" id="shopSelect" class="form-control" 
+                            onchange="onShopChange()" required
+                            {{ 'disabled' if product }}>
+                        <option value="">请选择店铺</option>
+                        {% for shop in shops %}
+                        <option value="{{ shop.id }}" 
+                                data-has-card91="{{ '1' if shop.card91_api_key else '0' }}"
+                                {{ 'selected' if (product and product.shop_id == shop.id) or (not product and default_shop_id == shop.id) }}>
+                            {{ shop.shop_name }}
+                            {% if shop.card91_api_key %}🎫{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" class="btn btn-sm btn-info" onclick="openCard91ConfigModal()" title="配置该店铺的91卡券API">
+                        ⚙️ 配置91卡券
+                    </button>
+                </div>
                 {% if product %}
                 <input type="hidden" name="shop_id" value="{{ product.shop_id }}">
                 {% endif %}
             </div>
             <div class="form-group">
                 <label>商品名称 *</label>
-                <input type="text" name="product_name" class="form-control" 
+                <input type="text" name="product_name" id="productName" class="form-control" 
                        value="{{ product.product_name if product else '' }}" 
                        required placeholder="例如：爱奇艺黄金会员月卡">
             </div>
         </div>
 
+        <!-- 京东商品链接自动填充 -->
+        <div class="form-group" style="background:#f6ffed;border:1px solid #b7eb8f;padding:12px;border-radius:4px;margin-bottom:16px;">
+            <label style="font-weight:bold;">🔗 京东商品链接（粘贴自动提取信息）</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" id="jdUrlInput" class="form-control" 
+                       placeholder="粘贴京东商品链接，如：https://item.jd.com/100011935867.html">
+                <button type="button" class="btn btn-sm btn-success" onclick="parseJdUrl()">🔍 自动提取</button>
+                <button type="button" class="btn btn-sm" onclick="clearJdUrl()">清空</button>
+            </div>
+            <div id="jdUrlMsg" style="margin-top:6px;font-size:13px;color:#666;"></div>
+        </div>
+
         <div class="form-row">
             <div class="form-group">
                 <label>京东商品ID <small class="text-muted">（选填，用于标识商品）</small></label>
-                <input type="text" name="jd_product_id" class="form-control" 
+                <input type="text" name="jd_product_id" id="jdProductId" class="form-control" 
                        value="{{ product.jd_product_id or '' if product else '' }}" 
                        placeholder="例如：100011935867">
             </div>
             <div class="form-group">
                 <label>SKU ID <small class="text-muted">（精确匹配订单，建议填写）</small></label>
-                <input type="text" name="sku_id" class="form-control" 
+                <input type="text" name="sku_id" id="skuId" class="form-control" 
                        value="{{ product.sku_id or '' if product else '' }}" 
                        placeholder="例如：5008077">
             </div>
             <div class="form-group">
                 <label>套餐/规格名称</label>
-                <input type="text" name="sku_name" class="form-control" 
+                <input type="text" name="sku_name" id="skuName" class="form-control" 
                        value="{{ product.sku_name or '' if product else '' }}" 
                        placeholder="例如：月卡 / 季卡 / 年卡">
             </div>
@@ -176,6 +193,45 @@
     </form>
 </div>
 
+<!-- 91卡券API配置弹窗 -->
+<div id="card91ConfigModal" style="display:none;position:fixed;z-index:9999;left:0;top:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);overflow:auto;">
+    <div style="background:#fff;margin:5vh auto;padding:0;width:600px;max-width:95vw;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.2);">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:15px 20px;border-bottom:1px solid #e8e8e8;background:#fafafa;border-radius:8px 8px 0 0;">
+            <h3 style="margin:0;font-size:16px;">🎫 91卡券 API配置</h3>
+            <span onclick="closeCard91ConfigModal()" style="cursor:pointer;font-size:24px;color:#999;">×</span>
+        </div>
+        <div style="padding:20px;">
+            <div class="alert" style="background:#fff7e6;border:1px solid #ffd591;padding:12px;border-radius:4px;margin-bottom:16px;font-size:13px;">
+                <strong>📋 如何获取91卡券API配置：</strong><br>
+                1. 登录 <strong>91卡券开放平台</strong>（https://www.91kaquan.com）<br>
+                2. 进入「开放平台」→「API管理」，创建或查看API应用<br>
+                3. 获取 <strong>API密钥（api_key）</strong> 和 <strong>API签名密钥（api_secret）</strong><br>
+                4. API地址默认为官方地址，如有自定义域名可填写<br>
+                5. 填写完成后点击「保存配置」，然后可点击「获取卡种列表」验证连接
+            </div>
+            <div id="card91ConfigShopName" style="margin-bottom:12px;font-weight:bold;color:#1890ff;"></div>
+            <div class="form-group">
+                <label>API地址 <small class="text-muted">（留空使用默认官方地址）</small></label>
+                <input type="text" id="modal_card91_api_url" class="form-control" placeholder="https://api.91kaquan.com（留空使用默认）">
+            </div>
+            <div class="form-group">
+                <label>API密钥（api_key）<span style="color:red;">*</span></label>
+                <input type="text" id="modal_card91_api_key" class="form-control" placeholder="在91卡券后台-API管理中获取">
+            </div>
+            <div class="form-group">
+                <label>API签名密钥（api_secret）<span style="color:red;">*</span> <small class="text-muted">（不填则保留原有密钥）</small></label>
+                <input type="password" id="modal_card91_api_secret" class="form-control" placeholder="在91卡券后台-API管理中获取">
+            </div>
+            <div id="card91ConfigMsg" style="margin:8px 0;font-weight:bold;"></div>
+            <div style="display:flex;gap:8px;margin-top:12px;">
+                <button type="button" class="btn btn-primary" onclick="saveCard91Config()">💾 保存配置</button>
+                <button type="button" class="btn btn-info" onclick="testCard91Config()">🔍 测试连接</button>
+                <button type="button" class="btn" onclick="closeCard91ConfigModal()">取消</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // 当前选中的店铺ID
 var currentShopId = {{ (product.shop_id if product else (default_shop_id or 0)) or 0 }};
@@ -270,9 +326,199 @@ function resetCard91Types() {
     if (select) select.innerHTML = '<option value="">-- 请先选择店铺后获取 --</option>';
 }
 
+// 91卡券配置弹窗
+function openCard91ConfigModal() {
+    if (!currentShopId) {
+        alert('请先选择店铺');
+        return;
+    }
+    var modal = document.getElementById('card91ConfigModal');
+    var msg = document.getElementById('card91ConfigMsg');
+    msg.textContent = '加载中...';
+    modal.style.display = 'block';
+    
+    // 获取当前店铺的91卡券配置
+    fetch('/product/api/shop-card91-config/' + currentShopId)
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (data.success) {
+            document.getElementById('modal_card91_api_url').value = data.data.card91_api_url || '';
+            document.getElementById('modal_card91_api_key').value = data.data.card91_api_key || '';
+            document.getElementById('modal_card91_api_secret').value = '';
+            
+            // 显示店铺名称
+            var shopSelect = document.getElementById('shopSelect');
+            var shopName = shopSelect ? shopSelect.options[shopSelect.selectedIndex].text : '';
+            document.getElementById('card91ConfigShopName').textContent = '店铺：' + shopName;
+            
+            if (data.data.has_secret) {
+                document.getElementById('modal_card91_api_secret').placeholder = '已配置（如需修改请重新填写）';
+            }
+            msg.textContent = '';
+        } else {
+            msg.textContent = '❌ ' + data.message;
+            msg.style.color = '#dc3545';
+        }
+    })
+    .catch(function() {
+        msg.textContent = '❌ 加载失败';
+        msg.style.color = '#dc3545';
+    });
+}
+
+function closeCard91ConfigModal() {
+    document.getElementById('card91ConfigModal').style.display = 'none';
+}
+
+function saveCard91Config() {
+    if (!currentShopId) return;
+    var msg = document.getElementById('card91ConfigMsg');
+    msg.textContent = '保存中...';
+    msg.style.color = '#1890ff';
+    
+    fetch('/product/api/save-shop-card91/' + currentShopId, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            card91_api_url: document.getElementById('modal_card91_api_url').value.trim(),
+            card91_api_key: document.getElementById('modal_card91_api_key').value.trim(),
+            card91_api_secret: document.getElementById('modal_card91_api_secret').value.trim(),
+        })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (data.success) {
+            msg.textContent = '✅ ' + data.message;
+            msg.style.color = '#52c41a';
+            // 更新店铺选择框中的data-has-card91属性
+            var shopSelect = document.getElementById('shopSelect');
+            if (shopSelect) {
+                var opt = shopSelect.options[shopSelect.selectedIndex];
+                if (opt) opt.setAttribute('data-has-card91', '1');
+            }
+            // 隐藏提示
+            var notice = document.getElementById('card91Notice');
+            if (notice) notice.style.display = 'none';
+        } else {
+            msg.textContent = '❌ ' + data.message;
+            msg.style.color = '#dc3545';
+        }
+    })
+    .catch(function() {
+        msg.textContent = '❌ 保存失败，请检查网络';
+        msg.style.color = '#dc3545';
+    });
+}
+
+function testCard91Config() {
+    if (!currentShopId) return;
+    var msg = document.getElementById('card91ConfigMsg');
+    msg.textContent = '测试中...';
+    msg.style.color = '#1890ff';
+    fetch('/shop/card91-test/' + currentShopId)
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (data.success) {
+            msg.textContent = '✅ ' + data.message;
+            msg.style.color = '#52c41a';
+        } else {
+            msg.textContent = '❌ ' + data.message;
+            msg.style.color = '#dc3545';
+        }
+    })
+    .catch(function() {
+        msg.textContent = '❌ 请求失败';
+        msg.style.color = '#dc3545';
+    });
+}
+
+// 京东商品URL解析
+function parseJdUrl() {
+    var url = document.getElementById('jdUrlInput').value.trim();
+    var msgEl = document.getElementById('jdUrlMsg');
+    
+    if (!url) {
+        msgEl.textContent = '请输入京东商品链接';
+        msgEl.style.color = '#dc3545';
+        return;
+    }
+    
+    // 解析京东商品URL
+    // 格式1: https://item.jd.com/100011935867.html  -> SKU ID
+    // 格式2: https://item.jd.com/100011935867.html?skuId=5008077  -> SKU ID from param
+    // 格式3: https://re.jd.com/cps/...?id=100011935867
+    var skuId = '';
+    var productId = '';
+    
+    try {
+        var urlObj = new URL(url);
+        var hostname = urlObj.hostname;
+        
+        if (hostname.indexOf('jd.com') !== -1) {
+            // 从路径提取
+            var path = urlObj.pathname;
+            var match = path.match(/\/(\d+)\.html/);
+            if (match) {
+                skuId = match[1];
+                productId = match[1];
+            }
+            
+            // URL参数中的skuId优先
+            var paramSkuId = urlObj.searchParams.get('skuId') || urlObj.searchParams.get('id');
+            if (paramSkuId && /^\d+$/.test(paramSkuId)) {
+                skuId = paramSkuId;
+            }
+        }
+    } catch (e) {
+        // URL解析失败，尝试正则
+        var match = url.match(/\/(\d{7,13})\.html/);
+        if (match) {
+            skuId = match[1];
+            productId = match[1];
+        }
+    }
+    
+    if (skuId) {
+        document.getElementById('skuId').value = skuId;
+        if (productId) document.getElementById('jdProductId').value = productId;
+        msgEl.textContent = '✅ 已提取 SKU ID：' + skuId + '（商品名称和套餐名请手动填写）';
+        msgEl.style.color = '#52c41a';
+    } else {
+        msgEl.textContent = '❌ 无法从链接中提取SKU ID，请手动填写';
+        msgEl.style.color = '#dc3545';
+    }
+}
+
+function clearJdUrl() {
+    document.getElementById('jdUrlInput').value = '';
+    document.getElementById('jdUrlMsg').textContent = '';
+}
+
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', function() {
     onDeliverTypeChange();
+    
+    // 支持粘贴时自动解析（使用clipboardData直接读取粘贴内容）
+    document.getElementById('jdUrlInput').addEventListener('paste', function(e) {
+        var pasted = e.clipboardData ? e.clipboardData.getData('text') : null;
+        if (pasted) {
+            e.preventDefault();
+            this.value = pasted;
+        }
+        // 使用input事件确保值已更新后再解析
+        setTimeout(parseJdUrl, 0);
+    });
+    document.getElementById('jdUrlInput').addEventListener('input', function() {
+        var url = this.value.trim();
+        if (url.indexOf('jd.com') !== -1) {
+            parseJdUrl();
+        }
+    });
+});
+
+// 点击外部关闭弹窗
+document.getElementById('card91ConfigModal').addEventListener('click', function(e) {
+    if (e.target === this) closeCard91ConfigModal();
 });
 </script>
 {% endblock %}

@@ -374,6 +374,17 @@ def notify_success(order_id):
             order.order_status = 2
             order.notify_status = NOTIFY_STATUS_SUCCESS
             order.notify_time = datetime.now()
+            # 记录事件
+            try:
+                from app.models.order_event import OrderEvent
+                db.session.add(OrderEvent(
+                    order_id=order.id, order_no=order.order_no,
+                    event_type='notify_success',
+                    event_desc=f'手动通知成功：{message}',
+                    operator=current_user.username, result='success',
+                ))
+            except Exception:
+                pass
             db.session.commit()
             _log_operation(current_user, 'deliver', 'order', order.id,
                            f'对订单 {order.jd_order_no} 执行了通知成功操作')
@@ -381,6 +392,16 @@ def notify_success(order_id):
             return jsonify(success=True, message='通知成功')
         else:
             order.notify_status = NOTIFY_STATUS_FAILED
+            try:
+                from app.models.order_event import OrderEvent
+                db.session.add(OrderEvent(
+                    order_id=order.id, order_no=order.order_no,
+                    event_type='error',
+                    event_desc=f'通知成功失败：{message}',
+                    operator=current_user.username, result='failed',
+                ))
+            except Exception:
+                pass
             db.session.commit()
             return jsonify(success=False, message=message)
     
@@ -424,6 +445,16 @@ def notify_refund(order_id):
             order.order_status = 4  # 已退款
             order.notify_status = NOTIFY_STATUS_SUCCESS
             order.notify_time = datetime.now()
+            try:
+                from app.models.order_event import OrderEvent
+                db.session.add(OrderEvent(
+                    order_id=order.id, order_no=order.order_no,
+                    event_type='notify_refund',
+                    event_desc=f'手动通知退款：{message}',
+                    operator=current_user.username, result='success',
+                ))
+            except Exception:
+                pass
             db.session.commit()
             _log_operation(current_user, 'refund', 'order', order.id,
                            f'对订单 {order.jd_order_no} 执行了通知退款操作')

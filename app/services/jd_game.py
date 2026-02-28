@@ -123,6 +123,10 @@ def callback_game_direct_success(shop, order):
         logger.warning(f"订单 {order.jd_order_no} 未配置游戏直充回调地址，无法回调")
         return False, '未配置回调地址，请在店铺设置中填写游戏直充回调地址'
 
+    data_obj = {
+        'orderId': order.jd_order_no,
+        'orderStatus': '1',  # 充值成功
+    }
     params = _build_game_callback_params(shop, data_obj)
 
     try:
