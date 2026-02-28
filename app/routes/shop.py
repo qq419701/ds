@@ -7,6 +7,8 @@ from app.models.shop import Shop
 from app.services.notification import send_test_notification
 import logging
 
+# 注意：阿奇索（Agiso）相关功能已于2026年删除，系统统一使用91卡券接口。
+
 logger = logging.getLogger(__name__)
 shop_bp = Blueprint('shop', __name__)
 
@@ -129,87 +131,50 @@ def test_notification():
     return jsonify(success=ok, message=msg)
 
 
-@shop_bp.route('/agiso-verify-token', methods=['POST'])
+@shop_bp.route('/card91-test/<int:shop_id>', methods=['GET'])
 @login_required
 @admin_required
-def agiso_verify_token():
-    """验证阿奇索访问令牌是否有效（通过查询余额接口）。"""
-    data = request.get_json() or {}
-    shop_id = data.get('shop_id')
-
-    shop = db.session.get(Shop, shop_id) if shop_id else None
-    if not shop:
-        # 允许直接传入配置而不保存（编辑时验证）
-        from app.models.shop import Shop as ShopModel
-
-        class TempShop:
-            agiso_app_id = data.get('agiso_app_id', '')
-            agiso_app_secret = data.get('agiso_app_secret', '')
-            agiso_access_token = data.get('agiso_access_token', '')
-            agiso_host = data.get('agiso_host', '')
-            agiso_port = None
-            agiso_enabled = 1
-
-        shop = TempShop()
-
-    if not shop.agiso_app_id or not shop.agiso_app_secret:
-        return jsonify(success=False, message='AppID或AppSecret未配置')
-    if not shop.agiso_access_token:
-        return jsonify(success=False, message='AccessToken未配置')
-
-    from app.services.agiso import agiso_query_balance
-    ok, msg, balance = agiso_query_balance(shop)
-    return jsonify(success=ok, message=msg, balance=balance)
-
-
-@shop_bp.route('/agiso-balance/<int:shop_id>', methods=['GET'])
-@login_required
-@admin_required
-def agiso_balance(shop_id):
-    """查询指定店铺的阿奇索平台余额。"""
+def card91_test(shop_id):
+    """测试91卡券API连接是否正常。"""
     shop = db.session.get(Shop, shop_id)
     if not shop:
         return jsonify(success=False, message='店铺不存在')
-    if not shop.agiso_enabled:
-        return jsonify(success=False, message='该店铺未启用阿奇索')
+    if not shop.card91_api_key:
+        return jsonify(success=False, message='该店铺未配置91卡券API密钥')
 
-    from app.services.agiso import agiso_query_balance
-    ok, msg, balance = agiso_query_balance(shop)
-    return jsonify(success=ok, message=msg, balance=balance)
+    from app.services.card91 import card91_test_connection
+    ok, msg = card91_test_connection(shop)
+    return jsonify(success=ok, message=msg)
 
 
 def _fill_shop_fields(shop, form):
-    """Fill shop fields from form data."""
-    # Game card config
+    """从表单数据填充店铺字段（已移除阿奇索相关字段）。"""
+    # 游戏点卡配置
     shop.game_customer_id = form.get('game_customer_id', '').strip() or None
     shop.game_md5_secret = form.get('game_md5_secret', '').strip() or None
     shop.game_direct_callback_url = form.get('game_direct_callback_url', '').strip() or None
     shop.game_card_callback_url = form.get('game_card_callback_url', '').strip() or None
     shop.game_api_url = form.get('game_api_url', '').strip() or None
 
-    # General trade config
+    # 通用交易配置
     shop.general_vendor_id = form.get('general_vendor_id', '').strip() or None
     shop.general_md5_secret = form.get('general_md5_secret', '').strip() or None
     shop.general_aes_secret = form.get('general_aes_secret', '').strip() or None
     shop.general_callback_url = form.get('general_callback_url', '').strip() or None
     shop.general_api_url = form.get('general_api_url', '').strip() or None
 
-    # Agiso config
-    shop.agiso_enabled = int(form.get('agiso_enabled', 0))
-    shop.agiso_host = form.get('agiso_host', '').strip() or None
-    shop.agiso_port = int(form.get('agiso_port', 0)) if form.get('agiso_port') else None
-    shop.agiso_app_id = form.get('agiso_app_id', '').strip() or None
-    shop.agiso_app_secret = form.get('agiso_app_secret', '').strip() or None
-    shop.agiso_access_token = form.get('agiso_access_token', '').strip() or None
-
-    # Notification config
+    # 订单通知配置
     shop.notify_enabled = int(form.get('notify_enabled', 0))
     shop.dingtalk_webhook = form.get('dingtalk_webhook', '').strip() or None
     shop.dingtalk_secret = form.get('dingtalk_secret', '').strip() or None
     shop.wecom_webhook = form.get('wecom_webhook', '').strip() or None
 
-    # Status
-    shop.auto_deliver = int(form.get('auto_deliver', 0))
+    # 91卡券配置（每个店铺单独配置）
+    shop.card91_api_url = form.get('card91_api_url', '').strip() or None
+    shop.card91_api_key = form.get('card91_api_key', '').strip() or None
+    shop.card91_api_secret = form.get('card91_api_secret', '').strip() or None
+
+    # 店铺状态（默认全部手动发货，不再有自动发货开关）
     shop.is_enabled = int(form.get('is_enabled', 1))
     expire_time_str = form.get('expire_time', '').strip()
     if expire_time_str:

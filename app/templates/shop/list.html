@@ -18,7 +18,7 @@
                     <th>状态</th>
                     <th>到期时间</th>
                     <th>通知状态</th>
-                    <th>阿奇索</th>
+                    <th>91卡券</th>
                     <th>操作</th>
                 </tr>
             </thead>
@@ -44,12 +44,10 @@
                         {% endif %}
                     </td>
                     <td>
-                        {% if shop.agiso_enabled == 1 %}
-                        <span class="badge badge-success">✅ 已启用</span>
-                        <button type="button" class="btn btn-xs btn-info" style="padding:1px 6px;font-size:11px;"
-                                onclick="queryAgisoBalance({{ shop.id }}, this)">查余额</button>
+                        {% if shop.card91_api_key %}
+                        <span class="badge badge-success">✅ 已配置</span>
                         {% else %}
-                        <span class="badge badge-default">未启用</span>
+                        <span class="badge badge-default">未配置</span>
                         {% endif %}
                     </td>
                     <td>
@@ -68,19 +66,4 @@
         </table>
     </div>
 </div>
-
-<script>
-function queryAgisoBalance(shopId, btn) {
-    btn.disabled = true;
-    btn.textContent = '查询中...';
-    fetch('/shop/agiso-balance/' + shopId)
-    .then(res => res.json())
-    .then(data => {
-        btn.disabled = false;
-        btn.textContent = '查余额';
-        alert(data.success ? '💰 ' + data.message : '❌ ' + data.message);
-    })
-    .catch(() => { btn.disabled = false; btn.textContent = '查余额'; });
-}
-</script>
 {% endblock %}
