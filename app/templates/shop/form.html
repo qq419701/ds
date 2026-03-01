@@ -2,6 +2,8 @@
 {% block title %}{{ '编辑店铺' if shop else '新建店铺' }}{% endblock %}
 
 {% block content %}
+{% set server_ip = request.host.split(':')[0] %}
+{% set base_url = request.scheme + '://' + request.host %}
 
 <div class="card mb-4" style="background: #f0f8ff; border-left: 4px solid #1890ff;">
     <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
@@ -14,42 +16,42 @@
     <div id="fixedApiInfo">
         <div class="info-row">
             <strong>服务器IP白名单：</strong>
-            <span class="info-value">{{ request.host.split(':')[0] }}</span>
-            <button class="btn-copy" onclick="copyText('{{ request.host.split(\':\')[0] }}')">📋 复制</button>
+            <span class="info-value" id="val_ip">{{ server_ip }}</span>
+            <button class="btn-copy" onclick="copyById('val_ip')">📋 复制</button>
         </div>
         <hr style="margin: 15px 0; border-top: 1px solid #d9d9d9;">
         <div class="section-subtitle">🎮 游戏点卡接口配置</div>
         <div class="info-row">
             <strong>2.2.1 直充接单接口：</strong>
-            <span class="info-value">{{ request.scheme }}://{{ request.host }}/api/game/direct</span>
-            <button class="btn-copy" onclick="copyText('{{ request.scheme }}://{{ request.host }}/api/game/direct')">📋 复制</button>
+            <span class="info-value" id="val_direct">{{ base_url }}/api/game/direct</span>
+            <button class="btn-copy" onclick="copyById('val_direct')">📋 复制</button>
         </div>
         <div class="info-row">
             <strong>2.2.2 直充订单查询：</strong>
-            <span class="info-value">{{ request.scheme }}://{{ request.host }}/api/game/query</span>
-            <button class="btn-copy" onclick="copyText('{{ request.scheme }}://{{ request.host }}/api/game/query')">📋 复制</button>
+            <span class="info-value" id="val_query">{{ base_url }}/api/game/query</span>
+            <button class="btn-copy" onclick="copyById('val_query')">📋 复制</button>
         </div>
         <div class="info-row">
             <strong>2.3.1 卡密接单接口：</strong>
-            <span class="info-value">{{ request.scheme }}://{{ request.host }}/api/game/card</span>
-            <button class="btn-copy" onclick="copyText('{{ request.scheme }}://{{ request.host }}/api/game/card')">📋 复制</button>
+            <span class="info-value" id="val_card">{{ base_url }}/api/game/card</span>
+            <button class="btn-copy" onclick="copyById('val_card')">📋 复制</button>
         </div>
         <div class="info-row">
             <strong>2.3.2 卡密订单查询：</strong>
-            <span class="info-value">{{ request.scheme }}://{{ request.host }}/api/game/card-query</span>
-            <button class="btn-copy" onclick="copyText('{{ request.scheme }}://{{ request.host }}/api/game/card-query')">📋 复制</button>
+            <span class="info-value" id="val_cardquery">{{ base_url }}/api/game/card-query</span>
+            <button class="btn-copy" onclick="copyById('val_cardquery')">📋 复制</button>
         </div>
         <hr style="margin: 15px 0; border-top: 1px solid #d9d9d9;">
         <div class="section-subtitle">🏪 通用交易接口配置</div>
         <div class="info-row">
             <strong>充值/提取卡密接口：</strong>
-            <span class="info-value">{{ request.scheme }}://{{ request.host }}/api/general/distill</span>
-            <button class="btn-copy" onclick="copyText('{{ request.scheme }}://{{ request.host }}/api/general/distill')">📋 复制</button>
+            <span class="info-value" id="val_distill">{{ base_url }}/api/general/distill</span>
+            <button class="btn-copy" onclick="copyById('val_distill')">📋 复制</button>
         </div>
         <div class="info-row">
             <strong>反查订单接口：</strong>
-            <span class="info-value">{{ request.scheme }}://{{ request.host }}/api/general/query</span>
-            <button class="btn-copy" onclick="copyText('{{ request.scheme }}://{{ request.host }}/api/general/query')">📋 复制</button>
+            <span class="info-value" id="val_genquery">{{ base_url }}/api/general/query</span>
+            <button class="btn-copy" onclick="copyById('val_genquery')">📋 复制</button>
         </div>
         <hr style="margin: 15px 0; border-top: 1px solid #d9d9d9;">
         <div class="alert alert-info mb-0" style="background: #e6f7ff; border: 1px solid #91d5ff; padding: 10px; border-radius: 4px;">
@@ -73,51 +75,44 @@
 </style>
 
 <script>
+function copyById(id) {
+    var text = document.getElementById(id).textContent.trim();
+    copyText(text);
+}
 function copyText(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(() => { showToast('✅ 已复制：' + text); }).catch(() => { fallbackCopy(text); });
+        navigator.clipboard.writeText(text).then(function(){ showToast('✅ 已复制：' + text); }).catch(function(){ fallbackCopy(text); });
     } else { fallbackCopy(text); }
 }
 function fallbackCopy(text) {
-    const textarea = document.createElement('textarea');
+    var textarea = document.createElement('textarea');
     textarea.value = text; textarea.style.position = 'fixed'; textarea.style.opacity = '0';
     document.body.appendChild(textarea); textarea.select();
-    try { document.execCommand('copy'); showToast('✅ 已复制：' + text); } catch (err) { showToast('❌ 复制失败，请手动复制'); }
+    try { document.execCommand('copy'); showToast('��� 已复制'); } catch(e) { showToast('❌ 复制失败'); }
     document.body.removeChild(textarea);
 }
 function copyAllInfo() {
-    const text = `服务器IP白名单：{{ request.host.split(':')[0] }}
-
-🎮 游戏点卡接口配置
-2.2.1 直充接单接口：{{ request.scheme }}://{{ request.host }}/api/game/direct
-2.2.2 直充订单查询：{{ request.scheme }}://{{ request.host }}/api/game/query
-2.3.1 卡密接单接口：{{ request.scheme }}://{{ request.host }}/api/game/card
-2.3.2 卡密订单查询：{{ request.scheme }}://{{ request.host }}/api/game/card-query
-
-🏪 通用交易接口配置
-充值/提取卡密接口：{{ request.scheme }}://{{ request.host }}/api/general/distill
-反查订单接口：{{ request.scheme }}://{{ request.host }}/api/general/query`;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(() => { showToast('✅ 已复制全部接口信息到剪贴板'); }).catch(() => { fallbackCopy(text); });
-    } else { fallbackCopy(text); }
+    var ids = ['val_ip','val_direct','val_query','val_card','val_cardquery','val_distill','val_genquery'];
+    var labels = ['服务器IP白名单','直充接单接口','直充订单查询','卡密接单接口','卡密订单查询','充值/提取卡密接口','反查订单接口'];
+    var text = '';
+    for(var i=0;i<ids.length;i++){ text += labels[i]+'：'+document.getElementById(ids[i]).textContent.trim()+'\n'; }
+    copyText(text);
 }
 function showToast(message) {
-    const toast = document.createElement('div');
+    var toast = document.createElement('div');
     toast.style.cssText = 'position:fixed;top:80px;right:20px;background:#52c41a;color:white;padding:15px 20px;border-radius:4px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-size:14px;';
     toast.textContent = message; document.body.appendChild(toast);
-    setTimeout(() => { toast.style.transition = 'opacity 0.3s'; toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 2500);
+    setTimeout(function(){ toast.style.transition='opacity 0.3s'; toast.style.opacity='0'; setTimeout(function(){ toast.remove(); },300); },2500);
 }
 </script>
 
 <div class="card">
     <div class="card-title">{{ '✏️ 编辑店铺配置' if shop else '🏪 新建店铺' }}</div>
-
     {% if shop %}
     <div class="alert alert-info mb-3" style="background: #e6f7ff; border: 1px solid #91d5ff; padding: 10px;">
         <strong>💡 提示：</strong>客户申请到京东密钥后，请在下方对应位置填写
     </div>
     {% endif %}
-
     <form method="POST">
         <div class="form-row">
             <div class="form-group">
@@ -138,7 +133,6 @@ function showToast(message) {
                 </select>
             </div>
         </div>
-
         <div class="form-row">
             <div class="form-group">
                 <label>状态</label>
@@ -206,14 +200,13 @@ function showToast(message) {
             <input type="text" name="general_api_url" class="form-control" value="{{ shop.general_api_url or 'https://api.jd-general.com/v1' if shop else 'https://api.jd-general.com/v1' }}">
         </div>
 
-        <!-- 91卡券配置 -->
         <div class="section-title">🎫 91卡券 API配置 <small class="text-muted">(每个店铺单独设置)</small></div>
         <div class="alert" style="background:#fff7e6;border:1px solid #ffd591;padding:14px;border-radius:6px;margin-bottom:16px;font-size:13px;line-height:1.8;">
             <b>📋 如何获取91卡券配置：</b><br>
             1. 登录 <a href="https://open.agiso.com/#/my/application/app-list" target="_blank" style="color:#1890ff;">https://open.agiso.com</a> → 「我的应用」<br>
-            2. 找到你的应用，复制 <strong>AppId</strong>（即API密钥）和 <strong>AppSecret</strong>（即API签名密钥）<br>
+            2. 复制 <strong>AppId</strong> 和 <strong>AppSecret</strong><br>
             3. 访问 <a href="https://mai.91kami.com/#/open/authorize" target="_blank" style="color:#1890ff;">https://mai.91kami.com/#/open/authorize</a> 输入AppId授权后获取 AccessToken<br>
-            4. 将三个值填入下方对应输入框保存即可
+            4. 将三个值填入下方保存即可
         </div>
         <div class="form-row">
             <div class="form-group">
@@ -223,7 +216,7 @@ function showToast(message) {
                        placeholder="例如：2023052934478182340">
             </div>
             <div class="form-group">
-                <label>AppSecret（API签名密钥）<span style="color:red;">*</span> <small class="text-muted">（不填则保留原有密钥）</small></label>
+                <label>AppSecret <span style="color:red;">*</span> <small class="text-muted">（不填则保留原有密钥）</small></label>
                 <input type="password" name="agiso_app_secret" class="form-control" value=""
                        placeholder="{{ '已配置（如需修改请重新填写）' if shop and shop.agiso_app_secret else '请填写AppSecret' }}">
             </div>
@@ -244,7 +237,6 @@ function showToast(message) {
         <input type="hidden" name="card91_api_url" value="https://gw-api.agiso.com">
         <input type="hidden" name="card91_api_key" value="{{ shop.card91_api_key or '' if shop else '' }}">
 
-        <!-- 订单通知配置 -->
         <div class="section-title">📢 订单通知配置</div>
         <div class="form-group">
             <label>启用订单通知</label>
@@ -282,7 +274,6 @@ function showToast(message) {
             <label>备注</label>
             <textarea name="remark" class="form-control" rows="3">{{ shop.remark or '' if shop else '' }}</textarea>
         </div>
-
         <div class="flex gap-2 mt-4">
             <button type="submit" class="btn btn-primary">保存</button>
             <a href="{{ url_for('shop.shop_list') }}" class="btn">取消</a>
@@ -295,15 +286,15 @@ function testNotification(shopId, type) {
     fetch('/api/shop/test-notification', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({shop_id: shopId, notify_type: type})
-    }).then(res => res.json()).then(data => { alert(data.success ? '✅ ' + data.message : '❌ ' + data.message); });
+    }).then(function(r){ return r.json(); }).then(function(data){ alert(data.success ? '✅ ' + data.message : '❌ ' + data.message); });
 }
 function testCard91Api(shopId) {
-    const el = document.getElementById('card91-test-result');
+    var el = document.getElementById('card91-test-result');
     el.textContent = '测试中...'; el.style.color = '#666';
-    fetch('/shop/card91-test/' + shopId).then(res => res.json()).then(data => {
+    fetch('/shop/card91-test/' + shopId).then(function(r){ return r.json(); }).then(function(data){
         if (data.success) { el.textContent = '✅ ' + (data.message || '连接成功'); el.style.color = '#28a745'; }
         else { el.textContent = '❌ ' + data.message; el.style.color = '#dc3545'; }
-    }).catch(() => { el.textContent = '❌ 请求失败，请检查网络'; el.style.color = '#dc3545'; });
+    }).catch(function(){ el.textContent = '❌ 请求失败'; el.style.color = '#dc3545'; });
 }
 </script>
 {% endblock %}
