@@ -1,28 +1,16 @@
-"""商品管理路由模块。
-
-提供商品的增删改查功能，支持：
-- 为每个店铺配置商品和对应发货方式
-- 从91卡券平台获取卡种列表
-- 手动或通过91卡券自动发货配置
-
-子账号权限：只能管理自己授权店铺的商品。
-"""
+"""商品管理路由模块。"""
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
-
 from app.extensions import db
 from app.models.shop import Shop
 from app.models.product import Product
 import logging
-import json
 
 logger = logging.getLogger(__name__)
-
 product_bp = Blueprint('product', __name__)
 
 
 def _check_shop_access(shop_id):
-    """检查当前用户是否有权限访问指定店铺。"""
     shop = db.session.get(Shop, shop_id)
     if not shop:
         return None
@@ -32,7 +20,6 @@ def _check_shop_access(shop_id):
 
 
 def _get_accessible_shops():
-    """获取当前用户可访问的店铺列表。"""
     if current_user.is_admin:
         return Shop.query.filter_by(is_enabled=1).order_by(Shop.shop_name).all()
     permitted_ids = current_user.get_permitted_shop_ids()
@@ -42,17 +29,12 @@ def _get_accessible_shops():
 
 
 def _log_operation(action, target_type, target_id, detail):
-    """记录操作日志。"""
     try:
         from app.models.operation_log import OperationLog
         log = OperationLog(
-            user_id=current_user.id,
-            username=current_user.username,
-            action=action,
-            target_type=target_type,
-            target_id=target_id,
-            detail=detail,
-            ip_address=request.remote_addr,
+            user_id=current_user.id, username=current_user.username,
+            action=action, target_type=target_type, target_id=target_id,
+            detail=detail, ip_address=request.remote_addr,
         )
         db.session.add(log)
         db.session.commit()
@@ -63,7 +45,6 @@ def _log_operation(action, target_type, target_id, detail):
 @product_bp.route('/')
 @login_required
 def product_list():
-    """商品列表页。"""
     page = request.args.get('page', 1, type=int)
     per_page = 20
     query = Product.query
@@ -90,20 +71,14 @@ def product_list():
                 Product.jd_product_id.like(f'%{keyword}%'),
             )
         )
-    pagination = query.order_by(Product.id.desc()).paginate(
-        page=page, per_page=per_page, error_out=False
-    )
+    pagination = query.order_by(Product.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
     shops = _get_accessible_shops()
-    return render_template('product/list.html',
-                           products=pagination.items,
-                           pagination=pagination,
-                           shops=shops)
+    return render_template('product/list.html', products=pagination.items, pagination=pagination, shops=shops)
 
 
 @product_bp.route('/create', methods=['GET', 'POST'])
 @login_required
 def product_create():
-    """创建商品配置。"""
     shops = _get_accessible_shops()
     if request.method == 'POST':
         shop_id = request.form.get('shop_id', type=int)
@@ -127,14 +102,12 @@ def product_create():
             db.session.rollback()
             flash(f'创建失败：{e}', 'danger')
     default_shop_id = request.args.get('shop_id', type=int)
-    return render_template('product/form.html', product=None, shops=shops,
-                           default_shop_id=default_shop_id)
+    return render_template('product/form.html', product=None, shops=shops, default_shop_id=default_shop_id)
 
 
 @product_bp.route('/edit/<int:product_id>', methods=['GET', 'POST'])
 @login_required
 def product_edit(product_id):
-    """编辑商品配置。"""
     product = db.session.get(Product, product_id)
     if not product:
         flash('商品不存在', 'danger')
@@ -147,8 +120,7 @@ def product_edit(product_id):
         _fill_product_fields(product, request.form)
         try:
             db.session.commit()
-            _log_operation('edit_product', 'product', product.id,
-                           f'编辑商品：{product.product_name}')
+            _log_operation('edit_product', 'product', product.id, f'编辑商品：{product.product_name}')
             flash('商品配置更新成功', 'success')
             return redirect(url_for('product.product_list'))
         except Exception as e:
@@ -160,7 +132,6 @@ def product_edit(product_id):
 @product_bp.route('/delete/<int:product_id>', methods=['POST'])
 @login_required
 def product_delete(product_id):
-    """删除商品配置。"""
     product = db.session.get(Product, product_id)
     if not product:
         flash('商品不存在', 'danger')
@@ -180,7 +151,6 @@ def product_delete(product_id):
 @product_bp.route('/api/card91-types/<int:shop_id>', methods=['GET'])
 @login_required
 def api_card91_types(shop_id):
-    """获取91卡券卡种列表（AJAX接口）。"""
     shop = _check_shop_access(shop_id)
     if not shop:
         return jsonify(success=False, message='店铺不存在或无权限')
@@ -194,7 +164,6 @@ def api_card91_types(shop_id):
 @product_bp.route('/api/card91-stock/<int:shop_id>/<card_type_id>', methods=['GET'])
 @login_required
 def api_card91_stock(shop_id, card_type_id):
-    """查询91卡券指定卡种库存（AJAX接口）。"""
     shop = _check_shop_access(shop_id)
     if not shop:
         return jsonify(success=False, message='店铺不存在或无权限')
@@ -206,7 +175,6 @@ def api_card91_stock(shop_id, card_type_id):
 @product_bp.route('/api/shop-card91-config/<int:shop_id>', methods=['GET'])
 @login_required
 def api_shop_card91_config(shop_id):
-    """获取店铺的91卡券配置（用于商品管理页面弹窗显示）。"""
     shop = _check_shop_access(shop_id)
     if not shop:
         return jsonify(success=False, message='店铺不存在或无权限')
@@ -220,7 +188,6 @@ def api_shop_card91_config(shop_id):
 @product_bp.route('/api/save-shop-card91/<int:shop_id>', methods=['POST'])
 @login_required
 def api_save_shop_card91(shop_id):
-    """从商品管理页面保存店铺的91卡券API配置。"""
     shop = _check_shop_access(shop_id)
     if not shop:
         return jsonify(success=False, message='店铺不存在或无权限')
@@ -232,57 +199,14 @@ def api_save_shop_card91(shop_id):
         shop.card91_api_secret = new_secret
     try:
         db.session.commit()
-        _log_operation('save_card91_config', 'shop', shop.id,
-                       f'从商品管理页面更新店铺91卡券配置：{shop.shop_name}')
+        _log_operation('save_card91_config', 'shop', shop.id, f'更新店铺91卡券配置：{shop.shop_name}')
         return jsonify(success=True, message='91卡券配置保存成功')
     except Exception as e:
         db.session.rollback()
         return jsonify(success=False, message=f'保存失败：{e}')
 
 
-@product_bp.route('/api/parse-jd-sku', methods=['POST'])
-@login_required
-def api_parse_jd_sku():
-    """解析用户从京东商品页面执行JS后复制的SKU数据。"""
-    data = request.get_json() or {}
-    raw_json = data.get('raw_json', '').strip()
-    if not raw_json:
-        return jsonify(success=False, message='数据为空，请先在京东商品页执行脚本')
-    try:
-        parsed = json.loads(raw_json)
-    except Exception:
-        return jsonify(success=False, message='JSON格式错误，请重新复制执行结果')
-    sku_id = str(parsed.get('skuId') or '').strip()
-    sku_name = str(parsed.get('skuName') or '').strip()
-    skus_raw = parsed.get('skus', [])
-    if not sku_id:
-        return jsonify(success=False, message='未找到skuId，请确认在正确的京东商品页执行了脚本')
-
-    def clean_spec(spec):
-        spec = spec.strip()
-        half = len(spec) // 2
-        if half > 0 and spec[:half] == spec[half:]:
-            return spec[:half]
-        return spec
-
-    skus = []
-    for s in skus_raw:
-        sid = str(s.get('skuId') or '').strip()
-        spec = clean_spec(str(s.get('spec') or ''))
-        if sid:
-            skus.append({'skuId': sid, 'spec': spec})
-
-    return jsonify(
-        success=True,
-        skuId=sku_id,
-        skuName=sku_name,
-        skus=skus,
-        message=f'成功获取商品信息，共{len(skus)}个规格'
-    )
-
-
 def _fill_product_fields(product, form):
-    """从表单数据填充商品字段。"""
     product.product_name = form.get('product_name', '').strip()
     product.jd_product_id = form.get('jd_product_id', '').strip() or None
     product.sku_id = form.get('sku_id', '').strip() or None

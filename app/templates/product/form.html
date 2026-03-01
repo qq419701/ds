@@ -1,5 +1,5 @@
 {% extends "layouts/base.html" %}
-{% block title %}{{ '编辑商品配置' if product else '新建商品配置' }}{% endblock %}
+{% block title %}{{ '编辑商品配置' if product else '新建商���配置' }}{% endblock %}
 
 {% block content %}
 <div class="card">
@@ -9,8 +9,8 @@
         <strong>💡 配置说明：</strong><br>
         • 为每个京东商品SKU设置对应的自动发货方式<br>
         • 选择 <strong>91卡券卡密</strong> 后，收到该SKU的订单时系统自动从91卡券仓库提取卡密发货<br>
-        • <strong>SKU ID</strong> 用于精确匹配京东推送过来的订单（不填则只匹配商品名称）<br>
-        • 不设置发货方式时默认为手动发货（通知成功/退款）
+        • <strong>SKU ID</strong> 用于精确匹配京东推送过来的订单，可填写多个（用英文逗号分隔），不填则只匹配商品名称<br>
+        • 不设置发货方式时默认为手��发货
     </div>
 
     <form method="POST" id="productForm">
@@ -20,21 +20,17 @@
                 <label>所属店铺 *</label>
                 <div style="display:flex;gap:8px;align-items:center;">
                     <select name="shop_id" id="shopSelect" class="form-control"
-                            onchange="onShopChange()" required
-                            {{ 'disabled' if product }}>
+                            onchange="onShopChange()" required {{ 'disabled' if product }}>
                         <option value="">请选择店铺</option>
                         {% for shop in shops %}
                         <option value="{{ shop.id }}"
                                 data-has-card91="{{ '1' if shop.card91_api_key else '0' }}"
                                 {{ 'selected' if (product and product.shop_id == shop.id) or (not product and default_shop_id == shop.id) }}>
-                            {{ shop.shop_name }}
-                            {% if shop.card91_api_key %}🎫{% endif %}
+                            {{ shop.shop_name }}{% if shop.card91_api_key %} 🎫{% endif %}
                         </option>
                         {% endfor %}
                     </select>
-                    <button type="button" class="btn btn-sm btn-info" onclick="openCard91ConfigModal()">
-                        ⚙️ 配置91卡券
-                    </button>
+                    <button type="button" class="btn btn-sm btn-info" onclick="openCard91ConfigModal()">⚙️ 配置91卡券</button>
                 </div>
                 {% if product %}
                 <input type="hidden" name="shop_id" value="{{ product.shop_id }}">
@@ -49,61 +45,6 @@
         </div>
 
         <div class="section-title">🔗 京东商品信息</div>
-        <div style="background:#f0f9ff;border:1px solid #91d5ff;padding:16px;border-radius:6px;margin-bottom:16px;">
-            <div style="margin-bottom:12px;font-size:13px;color:#333;">
-                <strong>🚀 一键获取商品信息</strong>
-                <span style="color:#888;margin-left:8px;">粘贴京东商品链接或直接输入 SKU ID，点击「🚀 一键获取」自动填入商品名称、ID、规格等信息</span>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
-                <input type="text" id="jdUrlInput" class="form-control"
-                       placeholder="粘贴京东商品链接，如：https://item.jd.com/10209904245352.html 或直接输入 SKU ID"
-                       style="flex:1;">
-                <button type="button" class="btn btn-primary" onclick="startJdFetch()">🚀 一键获取</button>
-                <button type="button" class="btn" onclick="clearJdFetch()">清空</button>
-            </div>
-            <div id="jdUrlMsg" style="font-size:13px;color:#666;margin-bottom:8px;"></div>
-
-            <div id="jdStepPanel" style="display:none;">
-                <div id="step1Panel" style="background:#fff;border:1px solid #d9d9d9;border-radius:4px;padding:12px;margin-bottom:10px;">
-                    <div style="font-weight:bold;margin-bottom:8px;color:#1890ff;">📋 第一步：在京东商品页执行以下脚本</div>
-                    <div style="font-size:12px;color:#666;margin-bottom:8px;">
-                        请在浏览器中打开京东商品页，按 <kbd style="background:#f0f0f0;padding:1px 5px;border-radius:3px;">F12</kbd>
-                        打开开发者工具，切换到 <strong>Console</strong> 标签，粘贴以下代码并按回车执行：
-                    </div>
-                    <div style="position:relative;">
-                        <textarea id="jdScript" readonly
-                                  style="width:100%;height:80px;font-family:monospace;font-size:12px;background:#1e1e1e;color:#d4d4d4;border:none;border-radius:4px;padding:10px;resize:none;box-sizing:border-box;"></textarea>
-                        <button type="button" onclick="copyScript()"
-                                style="position:absolute;top:6px;right:6px;background:#52c41a;color:white;border:none;border-radius:3px;padding:3px 10px;cursor:pointer;font-size:12px;">
-                            📋 复制脚本
-                        </button>
-                    </div>
-                    <div id="copyScriptMsg" style="margin-top:4px;font-size:12px;color:#52c41a;display:none;">✅ 已复制到剪贴板！</div>
-                </div>
-
-                <div id="step2Panel" style="background:#fff;border:1px solid #d9d9d9;border-radius:4px;padding:12px;">
-                    <div style="font-weight:bold;margin-bottom:8px;color:#1890ff;">📥 第二步：将执行结果粘贴到下方</div>
-                    <div style="font-size:12px;color:#666;margin-bottom:8px;">
-                        脚本执行后会自动复制结果到剪贴板，直接在下方输入框按 <kbd style="background:#f0f0f0;padding:1px 5px;border-radius:3px;">Ctrl+V</kbd> 粘贴：
-                    </div>
-                    <div style="display:flex;gap:8px;align-items:flex-start;">
-                        <textarea id="jdResultInput" class="form-control"
-                                  placeholder='粘贴京东页面脚本执行结果（JSON格式）'
-                                  rows="3"
-                                  style="flex:1;font-size:12px;font-family:monospace;"></textarea>
-                        <button type="button" class="btn btn-success" onclick="parseJdResult()" style="white-space:nowrap;">✅ 解析填入</button>
-                    </div>
-                    <div id="jdResultMsg" style="margin-top:6px;font-size:13px;"></div>
-                </div>
-            </div>
-
-            <div id="skuSelectPanel" style="display:none;margin-top:10px;background:#fff;border:1px solid #b7eb8f;border-radius:4px;padding:12px;">
-                <div style="font-weight:bold;margin-bottom:8px;color:#52c41a;">✅ 获取成功！请选择要配置的规格：</div>
-                <div id="skuList" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
-                <div style="margin-top:8px;font-size:12px;color:#888;">点击规格按钮自动填入下方表单</div>
-            </div>
-        </div>
-
         <div class="form-row">
             <div class="form-group">
                 <label>京东商品ID <small class="text-muted">（选填）</small></label>
@@ -112,16 +53,19 @@
                        placeholder="例如：10209904245352">
             </div>
             <div class="form-group">
-                <label>SKU ID <small class="text-muted">（精确匹配订单，建议填写）</small></label>
+                <label>SKU ID <small class="text-muted">（精确匹配订单，可填多个用英文逗号分隔）</small></label>
                 <input type="text" name="sku_id" id="skuId" class="form-control"
                        value="{{ product.sku_id or '' if product else '' }}"
-                       placeholder="例如：10209904245352">
+                       placeholder="例如：10209904245352,10209904245353">
+                <small class="text-muted" style="display:block;margin-top:4px;">
+                    💡 多个SKU ID用英文逗号分隔，如：<code>100001,100002,100003</code>
+                </small>
             </div>
             <div class="form-group">
                 <label>套餐/规格名称</label>
                 <input type="text" name="sku_name" id="skuName" class="form-control"
                        value="{{ product.sku_name or '' if product else '' }}"
-                       placeholder="例如：官服活绑120抽 4300灵玉">
+                       placeholder="例如：月卡 / 季卡 / 年卡">
             </div>
         </div>
 
@@ -141,12 +85,11 @@
                 <div style="font-weight:bold;margin-bottom:12px;">🎫 91卡券卡种配置</div>
                 <div id="card91Notice" style="display:none;background:#fff7e6;border:1px solid #ffd591;padding:8px;border-radius:4px;margin-bottom:12px;font-size:13px;">
                     ⚠️ 该店铺未配置91卡券API密钥，请先在
-                    <a href="{{ url_for('shop.shop_list') }}" target="_blank">店铺配置</a>
-                    中填写91卡券API信息。
+                    <a href="{{ url_for('shop.shop_list') }}" target="_blank">店铺配置</a> 中填写91卡券API信息。
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>卡种ID</label>
+                        <label>卡种ID <small class="text-muted">（91卡券仓库中的卡种唯一标识）</small></label>
                         <div style="display:flex;gap:8px;align-items:center;">
                             <input type="text" name="card91_card_type_id" id="card91CardTypeId"
                                    class="form-control"
@@ -183,7 +126,7 @@
             <div class="card mb-3" style="background:#f9f9f9;border:1px solid #d9d9d9;padding:16px;border-radius:4px;">
                 <div style="font-weight:bold;margin-bottom:12px;">⚡ 直充API配置（预留）</div>
                 <div class="alert alert-warning" style="background:#fff7e6;border:1px solid #ffd591;padding:10px;border-radius:4px;font-size:13px;">
-                    <strong>⚠️ 功能预留：</strong>直充API接口正在对接中，后续版本将支持多种直充货源方。
+                    <strong>⚠️ 功能预留：</strong>直充API接口正在对接中，后续版本将支持多种直充货源方。当前选择此方式的订单将以手动发货处理。
                 </div>
             </div>
         </div>
@@ -210,6 +153,7 @@
     </form>
 </div>
 
+<!-- 91卡券API配置弹窗 -->
 <div id="card91ConfigModal" style="display:none;position:fixed;z-index:9999;left:0;top:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);overflow:auto;">
     <div style="background:#fff;margin:5vh auto;padding:0;width:600px;max-width:95vw;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.2);">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:15px 20px;border-bottom:1px solid #e8e8e8;background:#fafafa;border-radius:8px 8px 0 0;">
@@ -242,7 +186,6 @@
 
 <script>
 var currentShopId = {{ (product.shop_id if product else (default_shop_id or 0)) or 0 }};
-var parsedSkus = [];
 
 function onShopChange() {
     var select = document.getElementById('shopSelect');
@@ -262,201 +205,85 @@ function onDeliverTypeChange() {
     if (val === '1') onShopChange();
 }
 
-function extractSkuId(input) {
-    input = input.trim();
-    if (/^\d{7,15}$/.test(input)) return input;
-    try {
-        var m = input.match(/\/(\d{7,15})\.html/);
-        if (m) return m[1];
-        var url = new URL(input);
-        var p = url.pathname.match(/\/(\d{7,15})\.html/);
-        if (p) return p[1];
-        var sid = url.searchParams.get('skuId') || url.searchParams.get('id');
-        if (sid && /^\d+$/.test(sid)) return sid;
-    } catch(e) {}
-    return null;
-}
-
-function startJdFetch() {
-    var input = document.getElementById('jdUrlInput').value.trim();
-    var msgEl = document.getElementById('jdUrlMsg');
-    var stepPanel = document.getElementById('jdStepPanel');
-    if (!input) {
-        msgEl.innerHTML = '<span style="color:#dc3545;">❌ 请输入京东商品链接或SKU ID</span>';
-        return;
-    }
-    var skuId = extractSkuId(input);
-    if (!skuId) {
-        msgEl.innerHTML = '<span style="color:#dc3545;">❌ 无法识别SKU ID，请检查链接格式</span>';
-        return;
-    }
-    document.getElementById('jdProductId').value = skuId;
-    document.getElementById('skuId').value = skuId;
-    document.getElementById('jdScript').value = generateJdScript();
-    stepPanel.style.display = '';
-    document.getElementById('skuSelectPanel').style.display = 'none';
-    document.getElementById('jdResultInput').value = '';
-    document.getElementById('jdResultMsg').innerHTML = '';
-    msgEl.innerHTML = '<span style="color:#1890ff;">📋 已识别 SKU ID：<strong>' + skuId + '</strong>，请按下方步骤继续操作</span>';
-}
-
-function generateJdScript() {
-    return 'function getJdSkusFinal(){var r={skuId:null,skuName:null,skus:[]};try{var item=(window._itemOnly&&window._itemOnly.item)||(window._itemInfo&&window._itemInfo.item);if(item){r.skuId=item.skuId;r.skuName=item.skuName;var cs=item.newColorSize||item.colorSize||[];r.skus=cs.map(function(s){var sp=((s.color||s["1"]||s.size||"")).trim();var h=Math.floor(sp.length/2);if(h>0&&sp.slice(0,h)===sp.slice(h))sp=sp.slice(0,h);return{skuId:s.skuId,spec:sp};});}}catch(e){r.error=e.toString();}return r;}var d=getJdSkusFinal();copy(JSON.stringify(d));alert("商品:"+d.skuName+"\\nSKU数:"+d.skus.length+"\\n已复制到剪贴板！");';
-}
-
-function copyScript() {
-    var script = document.getElementById('jdScript').value;
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(script).then(showCopyMsg).catch(function(){ fallbackCopy(script); });
-    } else { fallbackCopy(script); }
-}
-
-function fallbackCopy(text) {
-    var ta = document.createElement('textarea');
-    ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
-    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
-    document.body.removeChild(ta); showCopyMsg();
-}
-
-function showCopyMsg() {
-    var el = document.getElementById('copyScriptMsg');
-    el.style.display = '';
-    setTimeout(function(){ el.style.display='none'; }, 2000);
-}
-
-function parseJdResult() {
-    var raw = document.getElementById('jdResultInput').value.trim();
-    var msgEl = document.getElementById('jdResultMsg');
-    if (!raw) { msgEl.innerHTML='<span style="color:#dc3545;">❌ 请先粘贴执行结果</span>'; return; }
-    msgEl.innerHTML = '<span style="color:#1890ff;">⏳ 解析中...</span>';
-    fetch('/product/api/parse-jd-sku', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({raw_json: raw})
-    })
-    .then(function(res){ return res.json(); })
-    .then(function(data){
-        if (data.success) {
-            msgEl.innerHTML = '<span style="color:#52c41a;">✅ ' + data.message + '</span>';
-            if (data.skuName) document.getElementById('productName').value = data.skuName;
-            if (data.skuId) {
-                document.getElementById('jdProductId').value = data.skuId;
-                document.getElementById('skuId').value = data.skuId;
-            }
-            parsedSkus = data.skus || [];
-            renderSkuList(parsedSkus, data.skuId);
-        } else {
-            msgEl.innerHTML = '<span style="color:#dc3545;">❌ ' + data.message + '</span>';
-        }
-    })
-    .catch(function(){ msgEl.innerHTML='<span style="color:#dc3545;">❌ 请求失败，请检查网络</span>'; });
-}
-
-function renderSkuList(skus, mainSkuId) {
-    var panel = document.getElementById('skuSelectPanel');
-    var list = document.getElementById('skuList');
-    list.innerHTML = '';
-    if (!skus || skus.length === 0) { panel.style.display='none'; return; }
-    skus.forEach(function(sku){
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        var isMain = sku.skuId === mainSkuId;
-        btn.style.cssText = 'padding:6px 12px;border:1px solid #1890ff;background:' + (isMain?'#1890ff':'#fff') + ';color:' + (isMain?'#fff':'#1890ff') + ';border-radius:4px;cursor:pointer;font-size:13px;';
-        btn.textContent = sku.spec || sku.skuId;
-        btn.title = 'SKU ID: ' + sku.skuId;
-        btn.onclick = function(){
-            list.querySelectorAll('button').forEach(function(b){ b.style.background='#fff'; b.style.color='#1890ff'; });
-            btn.style.background='#1890ff'; btn.style.color='#fff';
-            document.getElementById('skuId').value = sku.skuId;
-            document.getElementById('skuName').value = sku.spec || '';
-        };
-        list.appendChild(btn);
-    });
-    panel.style.display = '';
-}
-
-function clearJdFetch() {
-    ['jdUrlInput','jdResultInput','jdProductId','skuId','skuName','productName'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
-    ['jdUrlMsg','jdResultMsg'].forEach(function(id){ var el=document.getElementById(id); if(el) el.innerHTML=''; });
-    document.getElementById('jdStepPanel').style.display='none';
-    document.getElementById('skuSelectPanel').style.display='none';
-    parsedSkus=[];
-}
-
 function loadCard91Types() {
     if (!currentShopId) { alert('请先选择店铺'); return; }
-    var container=document.getElementById('card91TypesContainer');
-    var select=document.getElementById('card91TypesSelect');
-    var stockInfo=document.getElementById('card91StockInfo');
-    stockInfo.textContent='正在获取卡种列表...'; container.style.display='';
-    fetch('/product/api/card91-types/'+currentShopId)
+    var container = document.getElementById('card91TypesContainer');
+    var select = document.getElementById('card91TypesSelect');
+    var stockInfo = document.getElementById('card91StockInfo');
+    stockInfo.textContent = '正在获取卡种列表...';
+    container.style.display = '';
+    fetch('/product/api/card91-types/' + currentShopId)
     .then(function(res){ return res.json(); })
     .then(function(data){
-        if (data.success && data.data && data.data.length>0) {
-            select.innerHTML='<option value="">-- 请选择卡种（共'+data.data.length+'个）--</option>';
+        if (data.success && data.data && data.data.length > 0) {
+            select.innerHTML = '<option value="">-- 请选择卡种（共' + data.data.length + '个）--</option>';
             data.data.forEach(function(item){
-                var opt=document.createElement('option');
-                opt.value=item.id; opt.textContent=item.name+'（库存：'+item.stock+'张）';
-                opt.setAttribute('data-name',item.name); opt.setAttribute('data-stock',item.stock);
+                var opt = document.createElement('option');
+                opt.value = item.id;
+                opt.textContent = item.name + '（库存：' + item.stock + '张）';
+                opt.setAttribute('data-name', item.name);
+                opt.setAttribute('data-stock', item.stock);
                 select.appendChild(opt);
             });
-            stockInfo.textContent='✅ 成功获取'+data.data.length+'个卡种'; stockInfo.style.color='#52c41a';
+            stockInfo.textContent = '✅ 成功获取' + data.data.length + '个卡种';
+            stockInfo.style.color = '#52c41a';
         } else {
-            select.innerHTML='<option value="">获取失败或无卡种数据</option>';
-            stockInfo.textContent='❌ '+(data.message||'获取失败'); stockInfo.style.color='#dc3545';
+            select.innerHTML = '<option value="">获取失败或无卡种数据</option>';
+            stockInfo.textContent = '❌ ' + (data.message || '获取失败');
+            stockInfo.style.color = '#dc3545';
         }
     })
-    .catch(function(){ stockInfo.textContent='❌ 请求失败，请检查网络'; stockInfo.style.color='#dc3545'; });
+    .catch(function(){ stockInfo.textContent = '❌ 请求失败'; stockInfo.style.color = '#dc3545'; });
 }
 
 function onCard91TypeSelect() {
-    var select=document.getElementById('card91TypesSelect');
-    var option=select.options[select.selectedIndex];
-    if (!option||!option.value) return;
-    document.getElementById('card91CardTypeId').value=option.value;
-    document.getElementById('card91CardTypeName').value=option.getAttribute('data-name')||'';
-    var stock=option.getAttribute('data-stock')||'0';
-    var stockInfo=document.getElementById('card91StockInfo');
-    stockInfo.textContent='当前库存：'+stock+'张';
-    stockInfo.style.color=parseInt(stock)>0?'#52c41a':'#dc3545';
+    var select = document.getElementById('card91TypesSelect');
+    var option = select.options[select.selectedIndex];
+    if (!option || !option.value) return;
+    document.getElementById('card91CardTypeId').value = option.value;
+    document.getElementById('card91CardTypeName').value = option.getAttribute('data-name') || '';
+    var stock = option.getAttribute('data-stock') || '0';
+    var stockInfo = document.getElementById('card91StockInfo');
+    stockInfo.textContent = '当前库存：' + stock + '张';
+    stockInfo.style.color = parseInt(stock) > 0 ? '#52c41a' : '#dc3545';
 }
 
 function resetCard91Types() {
-    var c=document.getElementById('card91TypesContainer'); if(c) c.style.display='none';
-    var s=document.getElementById('card91TypesSelect'); if(s) s.innerHTML='<option value="">-- 请先选择店铺后获取 --</option>';
+    var c = document.getElementById('card91TypesContainer'); if(c) c.style.display = 'none';
+    var s = document.getElementById('card91TypesSelect'); if(s) s.innerHTML = '<option value="">-- 请先选择店铺后获取 --</option>';
 }
 
 function openCard91ConfigModal() {
     if (!currentShopId) { alert('请先选择店铺'); return; }
-    var modal=document.getElementById('card91ConfigModal');
-    var msg=document.getElementById('card91ConfigMsg');
-    msg.textContent='加载中...'; modal.style.display='block';
-    fetch('/product/api/shop-card91-config/'+currentShopId)
+    var modal = document.getElementById('card91ConfigModal');
+    var msg = document.getElementById('card91ConfigMsg');
+    msg.textContent = '加载中...'; modal.style.display = 'block';
+    fetch('/product/api/shop-card91-config/' + currentShopId)
     .then(function(res){ return res.json(); })
     .then(function(data){
         if (data.success) {
-            document.getElementById('modal_card91_api_url').value=data.data.card91_api_url||'';
-            document.getElementById('modal_card91_api_key').value=data.data.card91_api_key||'';
-            document.getElementById('modal_card91_api_secret').value='';
-            var shopSelect=document.getElementById('shopSelect');
-            var shopName=shopSelect?shopSelect.options[shopSelect.selectedIndex].text:'';
-            document.getElementById('card91ConfigShopName').textContent='店铺：'+shopName;
-            if (data.data.has_secret) document.getElementById('modal_card91_api_secret').placeholder='已配置（如需修改请重新填写）';
-            msg.textContent='';
-        } else { msg.textContent='❌ '+data.message; msg.style.color='#dc3545'; }
+            document.getElementById('modal_card91_api_url').value = data.data.card91_api_url || '';
+            document.getElementById('modal_card91_api_key').value = data.data.card91_api_key || '';
+            document.getElementById('modal_card91_api_secret').value = '';
+            var shopSelect = document.getElementById('shopSelect');
+            var shopName = shopSelect ? shopSelect.options[shopSelect.selectedIndex].text : '';
+            document.getElementById('card91ConfigShopName').textContent = '店铺：' + shopName;
+            if (data.data.has_secret) document.getElementById('modal_card91_api_secret').placeholder = '已配置（如需修改请重新填写）';
+            msg.textContent = '';
+        } else { msg.textContent = '❌ ' + data.message; msg.style.color = '#dc3545'; }
     })
-    .catch(function(){ msg.textContent='❌ 加载失败'; msg.style.color='#dc3545'; });
+    .catch(function(){ msg.textContent = '❌ 加载失败'; msg.style.color = '#dc3545'; });
 }
 
-function closeCard91ConfigModal() { document.getElementById('card91ConfigModal').style.display='none'; }
+function closeCard91ConfigModal() { document.getElementById('card91ConfigModal').style.display = 'none'; }
 
 function saveCard91Config() {
     if (!currentShopId) return;
-    var msg=document.getElementById('card91ConfigMsg');
-    msg.textContent='保存中...'; msg.style.color='#1890ff';
-    fetch('/product/api/save-shop-card91/'+currentShopId, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
+    var msg = document.getElementById('card91ConfigMsg');
+    msg.textContent = '保存中...'; msg.style.color = '#1890ff';
+    fetch('/product/api/save-shop-card91/' + currentShopId, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
             card91_api_url: document.getElementById('modal_card91_api_url').value.trim(),
             card91_api_key: document.getElementById('modal_card91_api_key').value.trim(),
             card91_api_secret: document.getElementById('modal_card91_api_secret').value.trim(),
@@ -465,39 +292,29 @@ function saveCard91Config() {
     .then(function(res){ return res.json(); })
     .then(function(data){
         if (data.success) {
-            msg.textContent='✅ '+data.message; msg.style.color='#52c41a';
-            var shopSelect=document.getElementById('shopSelect');
-            if (shopSelect) { var opt=shopSelect.options[shopSelect.selectedIndex]; if(opt) opt.setAttribute('data-has-card91','1'); }
-            var notice=document.getElementById('card91Notice'); if(notice) notice.style.display='none';
-        } else { msg.textContent='❌ '+data.message; msg.style.color='#dc3545'; }
+            msg.textContent = '✅ ' + data.message; msg.style.color = '#52c41a';
+            var shopSelect = document.getElementById('shopSelect');
+            if (shopSelect) { var opt = shopSelect.options[shopSelect.selectedIndex]; if(opt) opt.setAttribute('data-has-card91','1'); }
+            var notice = document.getElementById('card91Notice'); if(notice) notice.style.display = 'none';
+        } else { msg.textContent = '❌ ' + data.message; msg.style.color = '#dc3545'; }
     })
-    .catch(function(){ msg.textContent='❌ 保存失败，请检查网络'; msg.style.color='#dc3545'; });
+    .catch(function(){ msg.textContent = '❌ 保存失败'; msg.style.color = '#dc3545'; });
 }
 
 function testCard91Config() {
     if (!currentShopId) return;
-    var msg=document.getElementById('card91ConfigMsg');
-    msg.textContent='测试中...'; msg.style.color='#1890ff';
-    fetch('/shop/card91-test/'+currentShopId)
+    var msg = document.getElementById('card91ConfigMsg');
+    msg.textContent = '测试中...'; msg.style.color = '#1890ff';
+    fetch('/shop/card91-test/' + currentShopId)
     .then(function(res){ return res.json(); })
     .then(function(data){
-        if (data.success) { msg.textContent='✅ '+data.message; msg.style.color='#52c41a'; }
-        else { msg.textContent='❌ '+data.message; msg.style.color='#dc3545'; }
+        if (data.success) { msg.textContent = '✅ ' + data.message; msg.style.color = '#52c41a'; }
+        else { msg.textContent = '❌ ' + data.message; msg.style.color = '#dc3545'; }
     })
-    .catch(function(){ msg.textContent='❌ 请求失败'; msg.style.color='#dc3545'; });
+    .catch(function(){ msg.textContent = '❌ 请求失败'; msg.style.color = '#dc3545'; });
 }
 
-document.addEventListener('DOMContentLoaded', function(){
-    onDeliverTypeChange();
-    var urlInput=document.getElementById('jdUrlInput');
-    urlInput.addEventListener('paste', function(e){
-        var pasted=e.clipboardData?e.clipboardData.getData('text'):null;
-        if (pasted) { e.preventDefault(); this.value=pasted; setTimeout(startJdFetch,50); }
-    });
-    urlInput.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); startJdFetch(); } });
-    document.getElementById('jdResultInput').addEventListener('paste', function(){ setTimeout(parseJdResult,100); });
-});
-
-document.getElementById('card91ConfigModal').addEventListener('click', function(e){ if(e.target===this) closeCard91ConfigModal(); });
+document.addEventListener('DOMContentLoaded', function(){ onDeliverTypeChange(); });
+document.getElementById('card91ConfigModal').addEventListener('click', function(e){ if(e.target === this) closeCard91ConfigModal(); });
 </script>
 {% endblock %}
