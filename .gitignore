@@ -46,3 +46,9 @@ Thumbs.db
 
 # Temp
 backups/
+nohup.out
+*.pyc
+__pycache__/
+venv/
+.env
+*.log
