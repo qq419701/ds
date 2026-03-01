@@ -1,0 +1,144 @@
+{% extends "layouts/base.html" %}
+{% block title %}商品管理{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="flex justify-between items-center mb-4">
+        <div class="card-title">🛍️ 商品管理</div>
+        <a href="{{ url_for('product.product_create') }}" class="btn btn-primary">+ 新建商品配置</a>
+    </div>
+
+    <!-- 说明 -->
+    <div class="alert alert-info mb-3" style="background:#e6f7ff;border:1px solid #91d5ff;padding:12px;border-radius:4px;font-size:13px;">
+        <strong>📋 使用说明：</strong>在此为每个京东SKU配置发货方式。<br>
+        • <strong>手动发货</strong>：收到订单后手动操作通知发货<br>
+        • <strong>91卡券卡密</strong>：收到订单后自动从91卡券仓库提取卡密发货<br>
+        • <strong>直充API（预留）</strong>：后续对接直充货源方使用
+    </div>
+
+    <!-- 搜索筛选 -->
+    <form method="GET" class="mb-4">
+        <div class="form-row">
+            <div class="form-group">
+                <input type="text" name="keyword" class="form-control" 
+                       placeholder="商品名称/SKU ID/套餐名" 
+                       value="{{ request.args.get('keyword', '') }}">
+            </div>
+            <div class="form-group">
+                <select name="shop_id" class="form-control">
+                    <option value="">全部店铺</option>
+                    {% for shop in shops %}
+                    <option value="{{ shop.id }}" {{ 'selected' if request.args.get('shop_id') == shop.id|string }}>
+                        {{ shop.shop_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <select name="deliver_type" class="form-control">
+                    <option value="">全部发货方式</option>
+                    <option value="0" {{ 'selected' if request.args.get('deliver_type') == '0' }}>手动发货</option>
+                    <option value="1" {{ 'selected' if request.args.get('deliver_type') == '1' }}>91卡券卡密</option>
+                    <option value="2" {{ 'selected' if request.args.get('deliver_type') == '2' }}>直充API（预留）</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary">🔍 搜索</button>
+                <a href="{{ url_for('product.product_list') }}" class="btn">重置</a>
+            </div>
+        </div>
+    </form>
+
+    <!-- 商品列表 -->
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>商品名称</th>
+                    <th>所属店铺</th>
+                    <th>SKU ID</th>
+                    <th>套餐名称</th>
+                    <th>发货方式</th>
+                    <th>91卡券卡种</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if products %}
+                    {% for product in products %}
+                    <tr>
+                        <td>
+                            <strong>{{ product.product_name }}</strong>
+                            {% if product.jd_product_id %}
+                            <br><small class="text-muted">京东ID：{{ product.jd_product_id }}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ product.shop.shop_name if product.shop else '-' }}</td>
+                        <td>
+                            {% if product.sku_id %}
+                            <code>{{ product.sku_id }}</code>
+                            {% else %}
+                            <span class="text-muted">未设置</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ product.sku_name or '-' }}</td>
+                        <td>
+                            {% if product.deliver_type == 0 %}
+                            <span class="badge badge-default">👋 手动发货</span>
+                            {% elif product.deliver_type == 1 %}
+                            <span class="badge badge-success">🎫 91卡券卡密</span>
+                            {% elif product.deliver_type == 2 %}
+                            <span class="badge badge-info">⚡ 直充API（预留）</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if product.deliver_type == 1 and product.card91_card_type_id %}
+                            <span title="卡种ID：{{ product.card91_card_type_id }}">
+                                {{ product.card91_card_type_name or product.card91_card_type_id }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if product.is_enabled == 1 %}
+                            <span class="badge badge-success">启用</span>
+                            {% else %}
+                            <span class="badge badge-danger">禁用</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('product.product_edit', product_id=product.id) }}" class="btn btn-sm">编辑</a>
+                            <form method="POST" action="{{ url_for('product.product_delete', product_id=product.id) }}" 
+                                  style="display:inline;" onsubmit="return confirm('确认删除此商品配置？')">
+                                <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted" style="padding: 40px;">
+                            暂无商品配置，<a href="{{ url_for('product.product_create') }}">点击新建</a>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 分页 -->
+    {% if pagination.pages > 1 %}
+    <div class="pagination">
+        {% if pagination.has_prev %}
+        <a href="{{ url_for('product.product_list', page=pagination.prev_num, **request.args) }}" class="btn btn-sm">上一页</a>
+        {% endif %}
+        <span class="text-muted">第 {{ pagination.page }} / {{ pagination.pages }} 页，共 {{ pagination.total }} 条</span>
+        {% if pagination.has_next %}
+        <a href="{{ url_for('product.product_list', page=pagination.next_num, **request.args) }}" class="btn btn-sm">下一页</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

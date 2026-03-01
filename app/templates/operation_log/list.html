@@ -1,0 +1,95 @@
+{% extends "layouts/base.html" %}
+{% block title %}操作日志{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-title">📋 操作日志</div>
+
+    <form method="GET" action="" class="mb-4">
+        <div class="form-row">
+            <div class="form-group">
+                <input type="text" name="username" class="form-control" placeholder="操作人" value="{{ request.args.get('username', '') }}">
+            </div>
+            <div class="form-group">
+                <select name="action" class="form-control">
+                    <option value="">全部操作</option>
+                    <option value="login" {{ 'selected' if request.args.get('action') == 'login' }}>登录</option>
+                    <option value="deliver" {{ 'selected' if request.args.get('action') == 'deliver' }}>发货</option>
+                    <option value="refund" {{ 'selected' if request.args.get('action') == 'refund' }}>退款</option>
+                    <option value="create_shop" {{ 'selected' if request.args.get('action') == 'create_shop' }}>创建店铺</option>
+                    <option value="edit_shop" {{ 'selected' if request.args.get('action') == 'edit_shop' }}>编辑店铺</option>
+                    <option value="delete_shop" {{ 'selected' if request.args.get('action') == 'delete_shop' }}>删除店铺</option>
+                    <option value="create_user" {{ 'selected' if request.args.get('action') == 'create_user' }}>创建用户</option>
+                    <option value="edit_user" {{ 'selected' if request.args.get('action') == 'edit_user' }}>编辑用户</option>
+                    <option value="delete_user" {{ 'selected' if request.args.get('action') == 'delete_user' }}>删除用户</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <input type="date" name="start_date" class="form-control" value="{{ request.args.get('start_date', '') }}">
+            </div>
+            <div class="form-group">
+                <input type="date" name="end_date" class="form-control" value="{{ request.args.get('end_date', '') }}">
+            </div>
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary">🔍 搜索</button>
+                <a href="" class="btn">重置</a>
+            </div>
+        </div>
+    </form>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>操作人</th>
+                    <th>操作类型</th>
+                    <th>对象类型</th>
+                    <th>对象ID</th>
+                    <th>操作详情</th>
+                    <th>IP地址</th>
+                    <th>时间</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>{{ log.id }}</td>
+                    <td>{{ log.username }}</td>
+                    <td><span class="badge badge-info">{{ log.action }}</span></td>
+                    <td>{{ log.target_type or '-' }}</td>
+                    <td>{{ log.target_id or '-' }}</td>
+                    <td>{{ log.detail or '-' }}</td>
+                    <td>{{ log.ip_address or '-' }}</td>
+                    <td>{{ log.create_time.strftime('%Y-%m-%d %H:%M:%S') if log.create_time else '-' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="text-center">暂无日志数据</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if pagination.pages > 1 %}
+    <div class="pagination">
+        {% if pagination.has_prev %}
+            <a href="?page={{ pagination.prev_num }}&username={{ request.args.get('username', '') }}&action={{ request.args.get('action', '') }}&start_date={{ request.args.get('start_date', '') }}&end_date={{ request.args.get('end_date', '') }}">上一页</a>
+        {% endif %}
+        {% for page in pagination.iter_pages() %}
+            {% if page %}
+                {% if page == pagination.page %}
+                    <span class="active">{{ page }}</span>
+                {% else %}
+                    <a href="?page={{ page }}&username={{ request.args.get('username', '') }}&action={{ request.args.get('action', '') }}&start_date={{ request.args.get('start_date', '') }}&end_date={{ request.args.get('end_date', '') }}">{{ page }}</a>
+                {% endif %}
+            {% else %}
+                <span>...</span>
+            {% endif %}
+        {% endfor %}
+        {% if pagination.has_next %}
+            <a href="?page={{ pagination.next_num }}&username={{ request.args.get('username', '') }}&action={{ request.args.get('action', '') }}&start_date={{ request.args.get('start_date', '') }}&end_date={{ request.args.get('end_date', '') }}">下一页</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

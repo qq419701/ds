@@ -198,16 +198,20 @@ def callback_game_refund(shop, order):
     Returns:
         (bool, str): (是否成功, 消息)
     """
-    callback_url = shop.game_api_url or shop.game_card_callback_url or shop.game_direct_callback_url
+    # 根据订单类型选择正确的回调URL
+    # order_type=1 直充用 game_direct_callback_url (gameApi.action)
+    # order_type=2 卡密用 game_card_callback_url   (cardApi.action)
+    if getattr(order, 'order_type', 1) == 2:
+        callback_url = shop.game_card_callback_url or shop.game_api_url or shop.game_direct_callback_url
+    else:
+        callback_url = shop.game_direct_callback_url or shop.game_api_url or shop.game_card_callback_url
     if not callback_url:
         logger.warning(f"订单 {order.jd_order_no} 未配置游戏回调地址，无法回调")
         return False, '未配置回调地址，请在店铺设置中填写游戏点卡回调地址'
 
     data_obj = {
         'orderId': order.jd_order_no,
-        'orderStatus': 2,
-        'failedCode': 999,
-        'failedReason': '商家退款',
+        'orderStatus': 2,  # 2=履约失败/退款
     }
 
     params = _build_game_callback_params(shop, data_obj)

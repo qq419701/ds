@@ -1,0 +1,527 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ '编辑商品配置' if product else '新建商品配置' }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-title">{{ '✏️ 编辑商品配置' if product else '🛍️ 新建商品配置' }}</div>
+
+    <div class="alert alert-info mb-3" style="background:#e6f7ff;border:1px solid #91d5ff;padding:12px;border-radius:4px;font-size:13px;">
+        <strong>💡 配置说明：</strong><br>
+        • 粘贴京东商品链接自动提取SKU ID，商品名称请手动填写或从订单记录复制<br>
+        • 选择 <strong>91卡券卡密</strong> 后，收到该SKU订单时系统自动从91卡券仓库提取卡密发货<br>
+        • 一个商品可有多个SKU（如月卡/季卡/年卡），点击「添加SKU行」逐一配置
+    </div>
+
+    <form method="POST" id="productForm" onsubmit="return beforeSubmit()">
+        <!-- 基本信息 -->
+        <div class="section-title">📦 基本信息</div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>所属店铺 <span style="color:red">*</span></label>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    {% if product %}
+                    <input type="hidden" name="shop_id" value="{{ product.shop_id }}">
+                    <input type="text" class="form-control" value="{{ product.shop.shop_name }}" disabled style="background:#f5f5f5;">
+                    {% else %}
+                    <select name="shop_id" id="shopSelect" class="form-control" onchange="onShopChange()" required>
+                        <option value="">请选择店铺</option>
+                        {% for shop in shops %}
+                        <option value="{{ shop.id }}"
+                                data-has-card91="{{ '1' if shop.card91_api_key else '0' }}"
+                                {{ 'selected' if default_shop_id == shop.id }}>
+                            {{ shop.shop_name }}{% if shop.card91_api_key %} 🎫{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" class="btn btn-sm btn-info" onclick="openCard91ConfigModal()">⚙️ 配置91卡券</button>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="form-group">
+                <label>商品名称 <span style="color:red">*</span></label>
+                <input type="text" name="product_name" id="productName" class="form-control"
+                       value="{{ product.product_name if product else '' }}"
+                       required placeholder="例如：爱奇艺黄金会员">
+            </div>
+        </div>
+
+        <!-- 京东链接解析 -->
+        <div class="form-group" style="background:#f6ffed;border:1px solid #b7eb8f;padding:12px;border-radius:4px;margin-bottom:16px;">
+            <label style="font-weight:bold;">🔗 京东商品链接解析</label>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
+                <input type="text" id="jdUrlInput" class="form-control"
+                       placeholder="粘贴京东链接自动提取SKU ID，如：https://item.jd.com/100011935867.html">
+                <button type="button" class="btn btn-sm btn-success" onclick="parseJdUrl()">🔍 提取</button>
+                <button type="button" class="btn btn-sm" onclick="document.getElementById('jdUrlInput').value=''">清空</button>
+            </div>
+            <div id="jdUrlMsg" style="margin-top:6px;font-size:12px;color:#888;">
+                💡 提示：京东商品页已全面JS渲染，无法自动获取商品名称，请手动填写商品名称和套餐名
+            </div>
+        </div>
+
+        <!-- 发货方式 -->
+        <div class="section-title">🚚 发货方式</div>
+        <div class="form-group">
+            <select name="deliver_type" id="deliverTypeSelect" class="form-control"
+                    onchange="onDeliverTypeChange()" style="width:auto;">
+                <option value="0" {{ 'selected' if not product or product.deliver_type == 0 }}>👋 手动发货</option>
+                <option value="1" {{ 'selected' if product and product.deliver_type == 1 }}>🎫 91卡券卡密（自动提卡）</option>
+                <option value="2" {{ 'selected' if product and product.deliver_type == 2 }}>⚡ 直充API（预留）</option>
+            </select>
+        </div>
+
+        <!-- SKU列表配置 -->
+        <div class="section-title">📋 SKU配置列表</div>
+        <div style="margin-bottom:8px;font-size:13px;color:#666;">每个SKU对应京东商品的一个规格，如月卡/季卡/年卡，分别填写SKU ID和套餐名</div>
+
+        <div id="skuList" style="border:1px solid #e8e8e8;border-radius:4px;overflow:hidden;margin-bottom:12px;">
+            <!-- SKU行头部 -->
+            <div style="display:grid;grid-template-columns:160px 1fr 120px 40px;gap:0;background:#fafafa;border-bottom:1px solid #e8e8e8;padding:8px 12px;font-weight:bold;font-size:13px;">
+                <div>SKU ID <span style="color:red">*</span></div>
+                <div>套餐/规格名称</div>
+                <div id="card91ColHeader" style="{{ '' if (product and product.deliver_type == 1) else 'display:none' }}">卡种</div>
+                <div></div>
+            </div>
+            <div id="skuRows">
+                <!-- 动态生成SKU行 -->
+            </div>
+        </div>
+
+        <button type="button" class="btn btn-sm btn-info" onclick="addSkuRow()">➕ 添加SKU行</button>
+
+        <!-- 91卡券配置说明（仅发货方式=1时显示） -->
+        <div id="card91Section" style="{{ '' if (product and product.deliver_type == 1) else 'display:none;' }}margin-top:12px;">
+            <div style="background:#f6ffed;border:1px solid #b7eb8f;padding:10px 14px;border-radius:4px;font-size:12px;">
+                <strong>🎫 91卡券说明：</strong>点击各SKU行的「选卡种」按钮，从91卡券仓库选择对应卡种；
+                或点击下方按钮批量加载卡种列表。<br>
+                <div id="card91Notice" style="display:none;color:#d46b08;margin-top:4px;">
+                    ⚠️ 该店铺未配置91卡券API密钥，请先
+                    <a href="javascript:openCard91ConfigModal()">配置91卡券</a>
+                </div>
+                <button type="button" class="btn btn-sm btn-info" style="margin-top:8px;" onclick="loadCard91Types()">🔄 加载卡种列表</button>
+                <span id="card91LoadStatus" style="margin-left:8px;font-size:12px;color:#666;"></span>
+            </div>
+        </div>
+
+        <!-- 其他设置 -->
+        <div class="section-title" style="margin-top:16px;">⚙️ 其他设置</div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>京东商品ID <small class="text-muted">（选填）</small></label>
+                <input type="text" name="jd_product_id" id="jdProductId" class="form-control"
+                       value="{{ product.jd_product_id or '' if product else '' }}"
+                       placeholder="商品大ID（非SKU ID）">
+            </div>
+            <div class="form-group">
+                <label>91卡券方案ID <small class="text-muted">（选填）</small></label>
+                <input type="text" name="card91_plan_id" class="form-control"
+                       value="{{ product.card91_plan_id or '' if product else '' }}"
+                       placeholder="留空不绑定方案">
+            </div>
+            <div class="form-group">
+                <label>状态</label>
+                <select name="is_enabled" class="form-control" style="width:auto;">
+                    <option value="1" {{ 'selected' if not product or product.is_enabled == 1 }}>启用</option>
+                    <option value="0" {{ 'selected' if product and product.is_enabled == 0 }}>禁用</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>备注</label>
+            <textarea name="remark" class="form-control" rows="2"
+                      placeholder="可填写备注信息">{{ product.remark or '' if product else '' }}</textarea>
+        </div>
+
+        <!-- 隐藏字段：实际提交的SKU信息（第一个SKU） -->
+        <input type="hidden" name="sku_id" id="hiddenSkuId" value="{{ product.sku_id or '' if product else '' }}">
+        <input type="hidden" name="sku_name" id="hiddenSkuName" value="{{ product.sku_name or '' if product else '' }}">
+        <input type="hidden" name="card91_card_type_id" id="hiddenCard91TypeId" value="{{ product.card91_card_type_id or '' if product else '' }}">
+        <input type="hidden" name="card91_card_type_name" id="hiddenCard91TypeName" value="{{ product.card91_card_type_name or '' if product else '' }}">
+
+        <div class="flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary" id="submitBtn">💾 保存配置</button>
+            <a href="{{ url_for('product.product_list') }}" class="btn">取消</a>
+        </div>
+    </form>
+</div>
+
+<!-- 卡种选择弹窗 -->
+<div id="card91SelectModal" style="display:none;position:fixed;z-index:9999;left:0;top:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);">
+    <div style="background:#fff;margin:8vh auto;padding:0;width:560px;max-width:95vw;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.2);">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #e8e8e8;background:#fafafa;border-radius:8px 8px 0 0;">
+            <h3 style="margin:0;font-size:15px;">🎫 选择91卡券卡种</h3>
+            <span onclick="closeCard91SelectModal()" style="cursor:pointer;font-size:22px;color:#999;">×</span>
+        </div>
+        <div style="padding:16px;">
+            <div id="card91SelectList" style="max-height:400px;overflow-y:auto;">
+                <div style="text-align:center;color:#999;padding:20px;">点击「加载卡种列表」后再选择</div>
+            </div>
+            <div style="margin-top:12px;text-align:right;">
+                <button type="button" class="btn" onclick="closeCard91SelectModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 91卡券API配置弹窗 -->
+<div id="card91ConfigModal" style="display:none;position:fixed;z-index:9999;left:0;top:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);">
+    <div style="background:#fff;margin:6vh auto;padding:0;width:560px;max-width:95vw;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.2);">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #e8e8e8;background:#fafafa;border-radius:8px 8px 0 0;">
+            <h3 style="margin:0;font-size:15px;">⚙️ 配置91卡券API</h3>
+            <span onclick="closeCard91ConfigModal()" style="cursor:pointer;font-size:22px;color:#999;">×</span>
+        </div>
+        <div style="padding:20px;">
+            <div id="card91ConfigShopName" style="margin-bottom:12px;font-weight:bold;color:#1890ff;"></div>
+            <div class="form-group">
+                <label>API地址 <small>(留空用官方默认)</small></label>
+                <input type="text" id="modal_card91_api_url" class="form-control" placeholder="https://api.91kaquan.com">
+            </div>
+            <div class="form-group">
+                <label>API密钥(api_key) <span style="color:red">*</span></label>
+                <input type="text" id="modal_card91_api_key" class="form-control" placeholder="在91卡券后台获取">
+            </div>
+            <div class="form-group">
+                <label>API签名密钥(api_secret) <small>(不填保留原有)</small></label>
+                <input type="password" id="modal_card91_api_secret" class="form-control" placeholder="在91卡券后台获取">
+            </div>
+            <div id="card91ConfigMsg" style="margin:8px 0;font-weight:bold;min-height:20px;"></div>
+            <div style="display:flex;gap:8px;">
+                <button type="button" class="btn btn-primary" onclick="saveCard91Config()">💾 保存</button>
+                <button type="button" class="btn btn-info" onclick="testCard91Config()">🔍 测试连接</button>
+                <button type="button" class="btn" onclick="closeCard91ConfigModal()">取消</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============ 全局状态 ============
+var currentShopId = {{ (product.shop_id if product else (default_shop_id or 0)) or 0 }};
+var card91Types = [];  // 已加载的卡种列表
+var currentSelectRowIndex = -1;  // 当前正在选卡种的行索引
+
+// ============ SKU行管理 ============
+var skuRows = [];  // [{skuId, skuName, card91TypeId, card91TypeName}]
+
+// 初始化SKU行数据（从已有商品加载）
+var initSkuId = "{{ product.sku_id or '' if product else '' }}";
+var initSkuName = "{{ product.sku_name or '' if product else '' }}";
+var initCard91TypeId = "{{ product.card91_card_type_id or '' if product else '' }}";
+var initCard91TypeName = "{{ product.card91_card_type_name or '' if product else '' }}";
+
+function renderSkuRows() {
+    var container = document.getElementById('skuRows');
+    var deliverType = document.getElementById('deliverTypeSelect').value;
+    var showCard91 = deliverType === '1';
+
+    if (skuRows.length === 0) {
+        container.innerHTML = '<div style="padding:16px;text-align:center;color:#999;font-size:13px;">暂无SKU配置，请点击「添加SKU行」或粘贴京东链接自动提取</div>';
+        return;
+    }
+
+    var html = '';
+    skuRows.forEach(function(row, idx) {
+        html += '<div class="sku-row" data-idx="' + idx + '" style="display:grid;grid-template-columns:160px 1fr ' + (showCard91 ? '200px ' : '') + '40px;gap:0;border-bottom:1px solid #f0f0f0;padding:8px 12px;align-items:center;">';
+        html += '<div><input type="text" class="form-control form-control-sm" placeholder="SKU ID" value="' + escHtml(row.skuId) + '" onchange="updateRow(' + idx + ',\'skuId\',this.value)" style="font-family:monospace;"></div>';
+        html += '<div style="padding:0 8px;"><input type="text" class="form-control form-control-sm" placeholder="套餐名称，如：月卡" value="' + escHtml(row.skuName) + '" onchange="updateRow(' + idx + ',\'skuName\',this.value)"></div>';
+        if (showCard91) {
+            var cardLabel = row.card91TypeId ? (row.card91TypeName || row.card91TypeId) : '未选择';
+            var cardColor = row.card91TypeId ? '#52c41a' : '#999';
+            html += '<div style="padding:0 4px;">';
+            html += '<div style="font-size:12px;color:' + cardColor + ';margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escHtml(cardLabel) + '">' + escHtml(cardLabel.length > 10 ? cardLabel.substring(0,10)+'…' : cardLabel) + '</div>';
+            html += '<button type="button" class="btn btn-xs btn-info" style="font-size:11px;padding:1px 6px;" onclick="openCard91SelectForRow(' + idx + ')">选卡种</button>';
+            html += '</div>';
+        }
+        html += '<div style="text-align:center;"><button type="button" onclick="removeSkuRow(' + idx + ')" style="background:none;border:none;color:#ff4d4f;font-size:16px;cursor:pointer;padding:0 4px;">×</button></div>';
+        html += '</div>';
+    });
+    container.innerHTML = html;
+}
+
+function addSkuRow(skuId, skuName) {
+    skuRows.push({
+        skuId: skuId || '',
+        skuName: skuName || '',
+        card91TypeId: '',
+        card91TypeName: ''
+    });
+    renderSkuRows();
+}
+
+function removeSkuRow(idx) {
+    skuRows.splice(idx, 1);
+    renderSkuRows();
+}
+
+function updateRow(idx, field, value) {
+    if (skuRows[idx]) skuRows[idx][field] = value;
+}
+
+function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ============ 京东链接解析 ============
+function parseJdUrl() {
+    var url = document.getElementById('jdUrlInput').value.trim();
+    var msgEl = document.getElementById('jdUrlMsg');
+    if (!url) { msgEl.textContent = '请输入京东商品链接'; msgEl.style.color='#dc3545'; return; }
+
+    var skuId = '', productId = '';
+    try {
+        var urlObj = new URL(url);
+        // https://item.jd.com/123456.html
+        var m = urlObj.pathname.match(/\/(\d+)\.html/);
+        if (m) { skuId = m[1]; productId = m[1]; }
+        // ?skuId=xxx 优先
+        var paramSku = urlObj.searchParams.get('skuId') || urlObj.searchParams.get('id');
+        if (paramSku && /^\d+$/.test(paramSku)) skuId = paramSku;
+    } catch(e) {
+        var m2 = url.match(/\/(\d{6,13})\.html/);
+        if (m2) { skuId = m2[1]; productId = m2[1]; }
+    }
+
+    if (skuId) {
+        // 填充商品大ID
+        if (productId) document.getElementById('jdProductId').value = productId;
+        // 添加到SKU行
+        addSkuRow(skuId, '');
+        msgEl.textContent = '✅ 已提取SKU ID：' + skuId + '，已添加到SKU列表，请手动填写套餐名称';
+        msgEl.style.color = '#52c41a';
+        document.getElementById('jdUrlInput').value = '';
+    } else {
+        msgEl.textContent = '❌ 无法提取SKU ID，请检查链接格式';
+        msgEl.style.color = '#dc3545';
+    }
+}
+
+// ============ 发货方式切换 ============
+function onDeliverTypeChange() {
+    var val = document.getElementById('deliverTypeSelect').value;
+    var card91Sec = document.getElementById('card91Section');
+    var card91Header = document.getElementById('card91ColHeader');
+    if (card91Sec) card91Sec.style.display = val === '1' ? '' : 'none';
+    if (card91Header) card91Header.style.display = val === '1' ? '' : 'none';
+    renderSkuRows();
+    if (val === '1') checkCard91Config();
+}
+
+function onShopChange() {
+    var select = document.getElementById('shopSelect');
+    if (!select) return;
+    currentShopId = parseInt(select.value) || 0;
+    card91Types = [];
+    document.getElementById('card91LoadStatus').textContent = '';
+    checkCard91Config();
+}
+
+function checkCard91Config() {
+    if (!currentShopId) return;
+    var select = document.getElementById('shopSelect');
+    if (!select) return;
+    var opt = select.options[select.selectedIndex];
+    var hasCard91 = opt && opt.getAttribute('data-has-card91') === '1';
+    var notice = document.getElementById('card91Notice');
+    if (notice) notice.style.display = hasCard91 ? 'none' : 'block';
+}
+
+// ============ 91卡券卡种加载 ============
+function loadCard91Types() {
+    if (!currentShopId) { alert('请先选择店铺'); return; }
+    var status = document.getElementById('card91LoadStatus');
+    status.textContent = '加载中...'; status.style.color='#1890ff';
+
+    fetch('/product/api/card91-types/' + currentShopId)
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+        if (data.success && data.data && data.data.length > 0) {
+            card91Types = data.data;
+            status.textContent = '✅ 已加载 ' + data.data.length + ' 个卡种';
+            status.style.color = '#52c41a';
+            renderCard91SelectList();
+        } else {
+            status.textContent = '❌ ' + (data.message || '获取失败');
+            status.style.color = '#dc3545';
+        }
+    })
+    .catch(function(){ status.textContent = '❌ 请求失败'; status.style.color='#dc3545'; });
+}
+
+function renderCard91SelectList() {
+    var container = document.getElementById('card91SelectList');
+    if (!card91Types || card91Types.length === 0) {
+        container.innerHTML = '<div style="text-align:center;color:#999;padding:20px;">暂无卡种，请先加载</div>';
+        return;
+    }
+    var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
+    html += '<tr style="background:#fafafa;"><th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e8e8e8;">卡种名称</th><th style="padding:6px 10px;text-align:center;border-bottom:1px solid #e8e8e8;">库存</th><th style="padding:6px 10px;text-align:center;border-bottom:1px solid #e8e8e8;">操作</th></tr>';
+    card91Types.forEach(function(item) {
+        var stockColor = parseInt(item.stock) > 0 ? '#52c41a' : '#dc3545';
+        html += '<tr style="border-bottom:1px solid #f5f5f5;">';
+        html += '<td style="padding:8px 10px;">' + escHtml(item.name) + '<br><small style="color:#999;">ID: ' + escHtml(item.id) + '</small></td>';
+        html += '<td style="padding:8px 10px;text-align:center;color:' + stockColor + ';">' + escHtml(String(item.stock)) + '</td>';
+        html += '<td style="padding:8px 10px;text-align:center;"><button type="button" class="btn btn-sm btn-primary" onclick="selectCard91Type(\'' + escHtml(item.id) + '\',\'' + escHtml(item.name) + '\')">选择</button></td>';
+        html += '</tr>';
+    });
+    html += '</table>';
+    container.innerHTML = html;
+}
+
+function openCard91SelectForRow(idx) {
+    if (card91Types.length === 0 && currentShopId) {
+        loadCard91Types();
+    }
+    currentSelectRowIndex = idx;
+    renderCard91SelectList();
+    document.getElementById('card91SelectModal').style.display = 'block';
+}
+
+function closeCard91SelectModal() {
+    document.getElementById('card91SelectModal').style.display = 'none';
+    currentSelectRowIndex = -1;
+}
+
+function selectCard91Type(typeId, typeName) {
+    if (currentSelectRowIndex >= 0 && skuRows[currentSelectRowIndex]) {
+        skuRows[currentSelectRowIndex].card91TypeId = typeId;
+        skuRows[currentSelectRowIndex].card91TypeName = typeName;
+        renderSkuRows();
+    }
+    closeCard91SelectModal();
+}
+
+// ============ 表单提交 ============
+function beforeSubmit() {
+    // 第一步：从DOM同步文本输入框的最新值到skuRows（只同步文本输入，不覆盖card91数据）
+    var rows = document.querySelectorAll('.sku-row');
+    rows.forEach(function(rowEl) {
+        var idx = parseInt(rowEl.getAttribute('data-idx'));
+        if (!skuRows[idx]) return;
+        var inputs = rowEl.querySelectorAll('input[type=text]');
+        // inputs[0]=SKU ID, inputs[1]=套餐名，card91数据在skuRows中维护，不从DOM读
+        if (inputs[0]) skuRows[idx].skuId = inputs[0].value.trim();
+        if (inputs[1]) skuRows[idx].skuName = inputs[1].value.trim();
+        // card91TypeId / card91TypeName 由 selectCard91Type() 写入 skuRows，不从DOM读取
+    });
+
+    // 第二步：验证至少有一行填了SKU ID
+    var validRows = skuRows.filter(function(r){ return r.skuId && r.skuId.trim(); });
+    if (validRows.length === 0) {
+        alert('请至少添加一个SKU配置（填写SKU ID）');
+        return false;
+    }
+
+    // 第三步：取第一个有效行写入hidden字段提交
+    var first = validRows[0];
+    document.getElementById('hiddenSkuId').value = first.skuId || '';
+    document.getElementById('hiddenSkuName').value = first.skuName || '';
+    document.getElementById('hiddenCard91TypeId').value = first.card91TypeId || '';
+    document.getElementById('hiddenCard91TypeName').value = first.card91TypeName || '';
+
+    console.log('[保存] SKU ID:', first.skuId, 
+                '套餐名:', first.skuName,
+                '卡种ID:', first.card91TypeId, 
+                '卡种名:', first.card91TypeName);
+    return true;
+}
+
+// ============ 91卡券API配置弹窗 ============
+function openCard91ConfigModal() {
+    if (!currentShopId) { alert('请先选择店铺'); return; }
+    document.getElementById('card91ConfigModal').style.display = 'block';
+    var msg = document.getElementById('card91ConfigMsg');
+    msg.textContent = '加载中...'; msg.style.color='#1890ff';
+
+    fetch('/product/api/shop-card91-config/' + currentShopId)
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            document.getElementById('modal_card91_api_url').value = data.data.card91_api_url || '';
+            document.getElementById('modal_card91_api_key').value = data.data.card91_api_key || '';
+            document.getElementById('modal_card91_api_secret').value = '';
+            document.getElementById('modal_card91_api_secret').placeholder = data.data.has_secret ? '已配置（如需修改请重新填写）' : '请填写';
+            var sel = document.getElementById('shopSelect');
+            var shopName = sel ? sel.options[sel.selectedIndex].text : '';
+            document.getElementById('card91ConfigShopName').textContent = '店铺：' + shopName;
+            msg.textContent = '';
+        } else {
+            msg.textContent = '❌ ' + data.message; msg.style.color='#dc3545';
+        }
+    });
+}
+
+function closeCard91ConfigModal() {
+    document.getElementById('card91ConfigModal').style.display = 'none';
+}
+
+function saveCard91Config() {
+    var msg = document.getElementById('card91ConfigMsg');
+    msg.textContent = '保存中...'; msg.style.color='#1890ff';
+    fetch('/product/api/save-shop-card91/' + currentShopId, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            card91_api_url: document.getElementById('modal_card91_api_url').value.trim(),
+            card91_api_key: document.getElementById('modal_card91_api_key').value.trim(),
+            card91_api_secret: document.getElementById('modal_card91_api_secret').value.trim(),
+        })
+    }).then(function(r){ return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            msg.textContent = '✅ ' + data.message; msg.style.color='#52c41a';
+            var sel = document.getElementById('shopSelect');
+            if (sel) sel.options[sel.selectedIndex].setAttribute('data-has-card91','1');
+            var notice = document.getElementById('card91Notice');
+            if (notice) notice.style.display = 'none';
+        } else {
+            msg.textContent = '❌ ' + data.message; msg.style.color='#dc3545';
+        }
+    });
+}
+
+function testCard91Config() {
+    var msg = document.getElementById('card91ConfigMsg');
+    msg.textContent = '测试中...'; msg.style.color='#1890ff';
+    fetch('/shop/card91-test/' + currentShopId)
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+        msg.textContent = (data.success ? '✅ ' : '❌ ') + data.message;
+        msg.style.color = data.success ? '#52c41a' : '#dc3545';
+    });
+}
+
+// ============ 初始化 ============
+document.addEventListener('DOMContentLoaded', function() {
+    // 加载已有SKU数据
+    if (initSkuId) {
+        skuRows.push({
+            skuId: initSkuId,
+            skuName: initSkuName,
+            card91TypeId: initCard91TypeId,
+            card91TypeName: initCard91TypeName
+        });
+    }
+    renderSkuRows();
+    onDeliverTypeChange();
+
+    // 京东链接粘贴自动解析
+    var urlInput = document.getElementById('jdUrlInput');
+    urlInput.addEventListener('paste', function(e) {
+        var text = e.clipboardData ? e.clipboardData.getData('text') : null;
+        if (text) { e.preventDefault(); this.value = text; }
+        setTimeout(parseJdUrl, 0);
+    });
+    urlInput.addEventListener('input', function() {
+        if (this.value.indexOf('jd.com') !== -1) setTimeout(parseJdUrl, 300);
+    });
+
+    // 点击外部关闭弹窗
+    document.getElementById('card91SelectModal').addEventListener('click', function(e){
+        if (e.target === this) closeCard91SelectModal();
+    });
+    document.getElementById('card91ConfigModal').addEventListener('click', function(e){
+        if (e.target === this) closeCard91ConfigModal();
+    });
+});
+</script>
+{% endblock %}

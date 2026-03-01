@@ -1,0 +1,145 @@
+{% extends "layouts/base.html" %}
+{% block title %}API日志{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-title">📡 API请求日志</div>
+
+    <form method="GET" action="" class="mb-4">
+        <div class="form-row">
+            <div class="form-group">
+                <select name="shop_id" class="form-control">
+                    <option value="">全部店铺</option>
+                    {% for shop in shops %}
+                    <option value="{{ shop.id }}" {{ 'selected' if request.args.get('shop_id') == shop.id|string }}>{{ shop.shop_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <select name="api_type" class="form-control">
+                    <option value="">全部接口</option>
+                    <option value="create_order" {{ 'selected' if request.args.get('api_type') == 'create_order' }}>创建订单</option>
+                    <option value="game_direct" {{ 'selected' if request.args.get('api_type') == 'game_direct' }}>游戏直充</option>
+                    <option value="game_card" {{ 'selected' if request.args.get('api_type') == 'game_card' }}>游戏卡密</option>
+                    <option value="game_query" {{ 'selected' if request.args.get('api_type') == 'game_query' }}>游戏查询</option>
+                    <option value="general_distill" {{ 'selected' if request.args.get('api_type') == 'general_distill' }}>通用直充</option>
+                    <option value="general_query" {{ 'selected' if request.args.get('api_type') == 'general_query' }}>通用查询</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <input type="date" name="start_date" class="form-control" value="{{ request.args.get('start_date', '') }}">
+            </div>
+            <div class="form-group">
+                <input type="date" name="end_date" class="form-control" value="{{ request.args.get('end_date', '') }}">
+            </div>
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary">🔍 搜索</button>
+                <a href="" class="btn">重置</a>
+            </div>
+        </div>
+    </form>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>店铺</th>
+                    <th>接口类型</th>
+                    <th>方法</th>
+                    <th>状态码</th>
+                    <th>IP地址</th>
+                    <th>时间</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>{{ log.id }}</td>
+                    <td>
+                        {% if log.shop_id %}
+                            {% set shop = shops | selectattr('id', 'equalto', log.shop_id) | first %}
+                            {{ shop.shop_name if shop else log.shop_id }}
+                        {% else %}-{% endif %}
+                    </td>
+                    <td><span class="badge badge-info">{{ log.api_type or '-' }}</span></td>
+                    <td>{{ log.request_method or '-' }}</td>
+                    <td>
+                        {% if log.response_status and log.response_status < 300 %}
+                            <span class="badge badge-success">{{ log.response_status }}</span>
+                        {% elif log.response_status %}
+                            <span class="badge badge-danger">{{ log.response_status }}</span>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>{{ log.ip_address or '-' }}</td>
+                    <td>{{ log.create_time.strftime('%Y-%m-%d %H:%M:%S') if log.create_time else '-' }}</td>
+                    <td>
+                        <button class="btn btn-sm" onclick="showApiDetail({{ log.id }}, {{ log.to_dict()|tojson }})">📄 详情</button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="text-center">暂无日志数据</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if pagination.pages > 1 %}
+    <div class="pagination">
+        {% if pagination.has_prev %}
+            <a href="?page={{ pagination.prev_num }}&shop_id={{ request.args.get('shop_id', '') }}&api_type={{ request.args.get('api_type', '') }}&start_date={{ request.args.get('start_date', '') }}&end_date={{ request.args.get('end_date', '') }}">上一页</a>
+        {% endif %}
+        {% for page in pagination.iter_pages() %}
+            {% if page %}
+                {% if page == pagination.page %}
+                    <span class="active">{{ page }}</span>
+                {% else %}
+                    <a href="?page={{ page }}&shop_id={{ request.args.get('shop_id', '') }}&api_type={{ request.args.get('api_type', '') }}&start_date={{ request.args.get('start_date', '') }}&end_date={{ request.args.get('end_date', '') }}">{{ page }}</a>
+                {% endif %}
+            {% else %}
+                <span>...</span>
+            {% endif %}
+        {% endfor %}
+        {% if pagination.has_next %}
+            <a href="?page={{ pagination.next_num }}&shop_id={{ request.args.get('shop_id', '') }}&api_type={{ request.args.get('api_type', '') }}&start_date={{ request.args.get('start_date', '') }}&end_date={{ request.args.get('end_date', '') }}">下一页</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- API详情弹窗 -->
+<div id="apiDetailModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;overflow:auto;">
+    <div style="background:#fff;margin:40px auto;max-width:800px;border-radius:8px;padding:24px;max-height:80vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h3>📡 API请求详情</h3>
+            <span onclick="document.getElementById('apiDetailModal').style.display='none'" style="cursor:pointer;font-size:24px;color:#999;">&times;</span>
+        </div>
+        <div id="apiDetailContent"></div>
+    </div>
+</div>
+
+<script>
+function showApiDetail(id, log) {
+    var content = document.getElementById('apiDetailContent');
+    content.innerHTML = [
+        '<div class="section-title">请求信息</div>',
+        '<p><strong>URL：</strong>' + (log.request_url || '-') + '</p>',
+        '<p><strong>方法：</strong>' + (log.request_method || '-') + '</p>',
+        '<p><strong>请求头：</strong></p>',
+        '<pre style="background:#f5f5f5;padding:12px;border-radius:4px;overflow:auto;max-height:150px;">' + (log.request_headers || '-') + '</pre>',
+        '<p><strong>请求体：</strong></p>',
+        '<pre style="background:#f5f5f5;padding:12px;border-radius:4px;overflow:auto;max-height:150px;">' + (log.request_body || '-') + '</pre>',
+        '<div class="section-title" style="margin-top:16px;">响应信息</div>',
+        '<p><strong>状态码：</strong>' + (log.response_status || '-') + '</p>',
+        '<p><strong>响应体：</strong></p>',
+        '<pre style="background:#f5f5f5;padding:12px;border-radius:4px;overflow:auto;max-height:200px;">' + (log.response_body || '-') + '</pre>',
+    ].join('');
+    document.getElementById('apiDetailModal').style.display = 'block';
+}
+window.onclick = function(e) {
+    var modal = document.getElementById('apiDetailModal');
+    if (e.target === modal) modal.style.display = 'none';
+};
+</script>
+{% endblock %}

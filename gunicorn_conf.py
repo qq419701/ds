@@ -1,0 +1,10 @@
+chdir = '/www/wwwroot/ds'
+workers = 4
+threads = 2
+user = 'www'
+worker_class = 'sync'
+bind = '0.0.0.0:5000'
+pidfile = '/www/wwwroot/ds/gunicorn.pid'
+accesslog = '/www/wwwlogs/python/ds/gunicorn_access.log'
+errorlog = '/www/wwwlogs/python/ds/gunicorn_error.log'
+loglevel = 'info'

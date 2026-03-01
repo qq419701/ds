@@ -1,0 +1,1446 @@
+https://open.agiso.com/document/#/aldsJd/guide
+
+接入指南
+1、接入流程
+【开发者操作】登录后台申请AppIds。
+入口：https://open.agiso.com/#/my/application/app-list
+【开发者操作】申请到AppId后，开发者可以登录后台管理AppId，这里可以查看和更换AppSecret、更改推送url、更改授权回调url等。
+入口：https://open.agiso.com/#/my/application/app-list
+【商家操作】授权，方法有二：
+1、输入开发者提供的AppId（相当于告诉Agiso，允许这个AppId通过Agiso开放平台获取或操作商家自己的订单数据），勾选相应要授权的权限。授权后会显示一个Token，将Token复制给开发者。
+入口：https://aldsJd.agiso.com/#/open/authorize
+2、开发者如果有开发自动授权，则商家可以通过访问以下页面进行授权：
+入口：https://aldsJd.agiso.com/#/authorize?appId={$开发者应用的AppId}&state={$开发者自定义参数}
+【开发者操作】开发者得到各个商家授权给的Token，并使用Token调用接口。调用接口时，需要使用AppSecret进行签名，具体签名方法参见下文。
+注意：开发者与商家，也可以是同一个人。
+2、获取AccessToken详解
+手动模式自动模式
+将你的AppId告诉您的用户，用户通过在授权页面(https://aldsJd.agiso.com/#/open/authorize)进行授权。
+          用户授权完成后，会获得一个AccessToken，让您的用户把该AccessToken发给你。 AccessToken的有效期和您的用户购买Agiso软件的使用时间一致。如果您的用户续费，那么AccessToken的有效期也会延长。
+自动模式
+1、接入流程 
+
+ 
+
+          拼接用户授权需访问url ，示例及参数说明如下：
+          https://aldsJd.agiso.com/#/authorize?appId={$开发者应用的AppId}&state={$开发者自定义参数}
+        
+
+ 
+appId
+是
+long
+应用的appId
+state
+否
+string
+开发者自定义参数，授权回调会把该参数回传回去
+ 
+2、引导用户登录授权
+
+ 
+          引导用户通过浏览器访问以上授权url
+         
+3、获取code
+
+ 
+          用户点“授权”按钮后，Agiso自动发货会将授权码code、自定义参数state返回到了回调地址上，应用可以获取并使用该code去换取AccessToken
+         
+4、换取AccessToken
+
+ 
+          通过访问 https://aldsJd.agiso.com/auth/token?code={$实际获取到的code}&appId={$开发者应用的AppId}&sign={$md5后的签名}
+          获取AccessToken换取AccessToken请求参数说明
+         
+appId
+是
+long
+应用的appId
+code
+是
+string
+上一步获取code得到
+sign
+是
+string
+跟接口的签名算法一致，md5({$开发者应用的AppSecret}appId{$开发者应用的AppId}code{$实际获取到的code}{$开发者应用的AppSecret})
+ 
+换取AccessToken返回值示例
+
+ 
+IsSuccess: true,
+Error_Code: 0,
+Error_Msg: "",
+Data:{
+    "FromPlatform":"TbAcs"
+    "UserId":123456,
+    "UserNick":"用户昵称",
+    "ShopName":"卡券店铺",
+    "ExpiresIn":165486,
+    "Token":"alds_afoiqhwfaldhfoaseio",
+    "SellerOpenUid ":"AAEF_gqxAAShiml5xxxxxxxx"
+  }
+ 
+换取AccessToken返回参数说明
+
+ 
+FromPlatform
+string
+平台，参数值：TbAcs,TbAlds,TbArs,Print,Acpr,PddAlds,AldsIdle,AldsJd,AldsDoudian,AldsKwai,AldsYouzan,AldsWeidian,AldsWxVideoShop,AldsXhs,Open
+UserId
+string
+用户Id
+UserNick
+string
+用户昵称
+ShopId
+string
+店铺Id
+ShopName
+string
+店铺名称
+ExpiresIn
+int
+AccessToken过期时间（表示 n 秒后过期）
+Token
+string
+AccessToken
+
+
+
+3、调用接口详解
+调用任何一个API都必须把AccessToken 和 ApiVersion 添加到Header ,格式为"Authorization: Bearer access_token"，其中Bearer后面有一个空格。同时还需传入以下公共参数：
+timestamp
+是
+Date
+时间戳，例如：1468476350。API服务端允许客户端请求最大时间误差为10分钟。
+sign
+是
+string
+API输入参数签名结果,签名算法参照下面的介绍。
+注意：接口调用配额，20次/秒。
+4、签名算法
+【对所有API请求参数（包括公共参数和业务参数，但除去sign参数和byte[]类型的参数），根据参数名称的ASCII码表的顺序排序。如：foo=1, bar=2, foo_bar=3, foobar=4排序后的顺序是bar=2, foo=1, foo_bar=3, foobar=4。
+将排序好的参数名和参数值拼装在一起，根据上面的示例得到的结果为：bar2foo1foo_bar3foobar4。
+把拼装好的字符串采用utf-8编码，在拼装的字符串前后加上app的secret后，使用MD5算法进行摘要，如：md5({$开发者应用的AppSecret}bar2foo1foo_bar3foobar4{$开发者应用的AppSecret})
+5、Header设置示例代码
+JavaC#PHPPython
+
+  HttpPost httpPost = new org.apache.http.client.methods.HttpPost(url);
+  httpPost.addHeader("Authorization","Bearer "+ accessToken);
+  httpPost.addHeader("ApiVersion", "1");
+Python
+ headers = {
+    "Authorization": f"Bearer {access_token}",
+    "ApiVersion": "1"
+  }
+  response = requests.post(url, headers=headers)
+
+
+6、签名算法示例代码
+JavaC#PHPPython
+ 
+  Map<String, String> data = new HashMap<String, String>();
+  data.put("modifyTimeStart", "2016-07-13 10:44:30");
+  data.put("pageNo", "1");
+  data.put("pageSize", "20");
+  //timestamp 为调用Api的公共参数，详细说明参考接入指南
+  data.put("timestamp", '1468476350');//假设当前时间为2016/7/14 14:5:50
+  //对键排序
+  String[] keys = data.keySet().toArray(new String[0]);
+  Arrays.sort(keys);
+  StringBuilder query = new StringBuilder();
+  //头加入AppSecret ，假设AppSecret值为******************
+  query.append(this.getClientSecret());
+  for (String key : keys) {
+      String value = data.get(key);
+      query.append(key).append(value);
+  }
+  //到这query的值为******************modifyTimeStart2016-07-13 10:44:30pageNo1pageSize20timestamp1468476350
+  //尾加入AppSecret
+  query.append(this.getClientSecret()); //query=******************modifyTimeStart2016-07-13 10:44:30pageNo1pageSize20timestamp1468476350******************
+  byte[] md5byte = encryptMD5(query.toString());
+  //sign 为调用Api的公共参数，详细说明参考接入指南
+  data.put("sign", byte2hex(md5byte)); //byte2hex(md5byte) = 935671331572EBF7F419EBB55EA28558
+  
+  // Md5摘要
+  public byte[] encryptMD5(String data) throws NoSuchAlgorithmException, UnsupportedEncodingException {
+      MessageDigest md5 = MessageDigest.getInstance("MD5");
+      return md5.digest(data.getBytes("UTF-8"));
+  }
+
+  public String byte2hex(byte[] bytes) {
+      StringBuilder sign = new StringBuilder();
+      for (int i = 0; i < bytes.length; i++) {
+          String hex = Integer.toHexString(bytes[i] & 0xFF);
+          if (hex.length() == 1) {
+              sign.append("0");
+          }
+          sign.append(hex.toLowerCase());
+      }
+      return sign.toString();
+  }
+
+Python
+import hashlib
+  from collections import OrderedDict
+  
+  def generate_sign(params, app_secret):
+      # 1. 对参数键按字典序排序
+      sorted_params = OrderedDict(sorted(params.items(), key=lambda x: x[0]))
+  
+      # 2. 拼接字符串：首尾加入 client_secret
+      query_str = app_secret
+      for key, value in sorted_params.items():
+          query_str += f"{key}{value}"
+      query_str += app_secret
+  
+      # 3. 计算 MD5 并转为小写十六进制
+      md5 = hashlib.md5()
+      md5.update(query_str.encode('utf-8'))
+      sign = md5.hexdigest().lower()
+      return sign
+  
+  # 示例使用
+  if __name__ == "__main__":
+      # 准备参数
+      params = {
+          "tids": "1234567789",
+          "timestamp": "1468476350"  # 假设当前时间为 2016/7/14 14:5:50
+      }
+      app_secret = "******************"  # 替换为实际 AppSecret
+  
+      # 生成签名并添加到参数
+      sign = generate_sign(params, app_secret)
+      params["sign"] = sign
+
+
+7、完整调用API示例代码
+以下代码以调用LogisticsDummySend(更新发货状态)为例
+JavaC#PHPPython
+
+  public String logisticsDummySend() {
+      String appSecret = "******************";
+      String accessToken = "*************************";
+
+      CloseableHttpClient httpclient = HttpClients.createDefault();
+      HttpPost httpPost = new HttpPost("https://gw-api.agiso.com/aldsJd/Trade/LogisticsDummySend");
+      // 设置头部
+      httpPost.addHeader("Authorization", "Bearer " + accessToken);
+      httpPost.addHeader("ApiVersion", "1");
+      //业务参数
+      Map<String, String> data = new HashMap<String, String>();
+      String tids = "1234567789,9874561233";
+      data.put("tids", tids); 注意 tids是示例参数实际参数要以当前文档上的入参为准！！！
+      Long timestamp = System.currentTimeMillis() / 1000;
+      data.put("timestamp", timestamp.toString());
+      // 参数签名
+      try {
+          data.put("sign", sign(data, appSecret));
+      } catch (NoSuchAlgorithmException e) {
+          e.printStackTrace();
+      } catch (UnsupportedEncodingException e) {
+          e.printStackTrace();
+      }
+      List<BasicNameValuePair> params = new ArrayList<BasicNameValuePair>();
+      for (Map.Entry<String, String> entry : data.entrySet()) {
+          params.add(new BasicNameValuePair(entry.getKey(), entry.getValue()));
+      }
+      // 发起POST请求
+      try {
+          httpPost.setEntity(new UrlEncodedFormEntity(params, "UTF-8"));
+          HttpResponse httpResponse = httpclient.execute(httpPost);
+          if (httpResponse.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+              return EntityUtils.toString(httpResponse.getEntity());
+          } else {
+              return ("doPost Error Response: " + httpResponse.getStatusLine().toString());
+          }
+      } catch (Exception e) {
+          e.printStackTrace();
+          return null;
+      }
+  }
+
+  // 参数签名
+  public String sign(Map<String, String> params, String appSecret)
+          throws NoSuchAlgorithmException, UnsupportedEncodingException {
+      String[] keys = params.keySet().toArray(new String[0]);
+      Arrays.sort(keys);
+
+      StringBuilder query = new StringBuilder();
+      query.append(appSecret);
+      for (String key : keys) {
+          String value = params.get(key);
+          query.append(key).append(value);
+      }
+      query.append(appSecret);
+
+      byte[] md5byte = encryptMD5(query.toString());
+
+      return byte2hex(md5byte);
+  }
+
+  // byte数组转成16进制字符串
+  public static String byte2hex(byte[] bytes) {
+      StringBuilder sign = new StringBuilder();
+      for (int i = 0; i < bytes.length; i++) {
+          String hex = Integer.toHexString(bytes[i] & 0xFF);
+          if (hex.length() == 1) {
+              sign.append("0");
+          }
+          sign.append(hex.toLowerCase());
+      }
+      return sign.toString();
+  }
+
+  // Md5摘要
+  public static byte[] encryptMD5(String data) throws NoSuchAlgorithmException, UnsupportedEncodingException {
+      MessageDigest md5 = MessageDigest.getInstance("MD5");
+      return md5.digest(data.getBytes("UTF-8"));
+  }
+
+
+
+
+
+Python
+
+import hashlib
+  import time
+  import requests
+  from urllib.parse import urlencode
+  
+  class AgisoApiClient:
+      def __init__(self, app_secret, access_token):
+          self.app_secret = app_secret
+          self.access_token = access_token
+          self.api_url = "https://gw-api.agiso.com/aldsJd/Trade/LogisticsDummySend"
+  
+      def logistics_dummy_send(self, tids):
+          """模拟发货接口调用"""
+          # 1. 准备基础参数
+          params = {
+              "tids": tids,
+              "timestamp": str(int(time.time()))  # 当前时间戳（秒级）
+          }
+  
+          # 2. 生成签名
+          try:
+              params["sign"] = self._generate_sign(params)
+          except Exception as e:
+              print(f"生成签名失败: {e}")
+              return None
+  
+          # 3. 设置请求头
+          headers = {
+              "Authorization": f"Bearer {self.access_token}",
+              "ApiVersion": "1",
+              "Content-Type": "application/x-www-form-urlencoded"
+          }
+  
+          # 4. 发送POST请求
+          try:
+              response = requests.post(
+                  self.api_url,
+                  data=urlencode(params),  # 表单编码
+                  headers=headers
+              )
+  
+              if response.status_code == 200:
+                  return response.text
+              else:
+                  return f"Error Response: {response.status_code} - {response.text}"
+          except Exception as e:
+              print(f"请求发送失败: {e}")
+              return None
+  
+      def _generate_sign(self, params):
+          """生成MD5签名"""
+          # 1. 参数按键名排序
+          sorted_params = sorted(params.items(), key=lambda x: x[0])
+  
+          # 2. 拼接签名字符串
+          query_str = self.app_secret
+          for key, value in sorted_params:
+              query_str += f"{key}{value}"
+          query_str += self.app_secret
+  
+          # 3. 计算MD5并转为小写十六进制
+          md5 = hashlib.md5()
+          md5.update(query_str.encode('utf-8'))
+          return md5.hexdigest().lower()
+  
+  # 使用示例
+  if __name__ == "__main__":
+      # 替换为实际值
+      APP_SECRET = "******************"
+      ACCESS_TOKEN = "*************************"
+      TIDS = "1234567789"  # 示例参数，需按文档调整
+  
+      client = AgisoApiClient(APP_SECRET, ACCESS_TOKEN)
+      result = client.logistics_dummy_send(TIDS)
+      print("接口响应:", result)
+
+
+
+更新发货状态
+简要描述：  接口调用示例
+
+￥基础
+执行无物流发货，更新发货状态
+请求URL：
+
+https://gw-api.agiso.com/aldsJd/Order/DummySend
+请求方式：
+
+POST
+公共Header：
+
+公共参数：
+
+参数：
+
+orderId
+是
+Long
+订单号
+logiCoprId
+是
+String
+物流公司ID(只可通过获取商家物流公司接口获得),多个物流公司以|分隔。如：2100|4700。请注意：如果填写厂家自送（1274），则不会保存物流单号，也不会有具体的跟踪信息。
+logiNo
+否
+String
+运单号(当厂家自送时运单号可为空，不同物流公司的运单号用|分隔，如果同一物流公司有多个运单号，则用英文逗号分隔) 。如：1200458628372,111232|468778814888,323232323
+返回示例
+
+
+      {
+        "IsSuccess": true,
+        "Data": null
+        "Error_Code": 0,
+        "Error_Msg": ""
+        "AllowRetry": null,
+        "RequestId": "20221027142251106"
+      }
+
+检索单个SOP订单信息
+简要描述：  接口调用示例
+
+￥高级
+输入单个SOP订单id，得到所有相关订单信息
+请求URL：
+
+https://gw-api.agiso.com/aldsJd/Order/Detail
+请求方式：
+
+POST
+公共Header：
+
+公共参数：
+
+参数：
+
+order_id
+是
+String
+订单号
+返回示例
+
+
+      {
+        "isSuccess": true,
+        "data": {
+          "orderId": "153652861660", // 订单id
+          "venderId": "624092",      // 商家id，商家编号
+          "orderType": "22",         // 订单类型（22 SOP； 75 LOC；21:FBP，112:FCS，142:IBS） 可选字段，需要在输入参数optional_fields中写入才能返回
+          "orderState": "FINISHED_L", // 订单状态（英文）；枚举值：1）WAIT_SELLER_STOCK_OUT 等待出库 2）WAIT_GOODS_RECEIVE_CONFIRM 等待确认收货 3）WAIT_SELLER_DELIVERY等待发货（只适用于海外购商家，含义为“等待境内发货”标签下的订单,非海外购商家无需使用） 4) POP_ORDER_PAUSE POP暂停 5）FINISHED_L 完成 6）TRADE_CANCELED 取消 7）LOCKED 已锁定 8）WAIT_SEND_CODE 等待发码（LOC订单特有状态） 9）PAUSE 暂停（等待出库之前的状态） 10)DELIVERY_RETURN 配送退货 11）UN_KNOWN 未知 请联系运营
+          "orderRemark": "",         // 订单状态说明（中文）
+          "orderStartTime": "2021-04-07 19:35:50",  // 下单时间
+          "itemInfoList": [ 
+            {
+              "skuId": "72143855364",   // 京东内部SKU的ID
+              "outerSkuId": "TTB007x05",// SKU外部ID（极端情况下不保证返回，建议从商品接口获取 
+              "skuName": "二代OMS测试-勿拍",// 商品的名称+SKU规格 
+              "jdPrice": "1.00", // 	SKU的京东价 
+              "giftPoint": "0", // 赠送积分 
+              "wareId": "14459363073", // 京东内部商品ID（极端情况下不保证返回，建议从商品接口获取） 
+              "itemTotal": "1", // 数量 
+              "productNo": "",  // 货号 
+              "newStoreId": "0" // item维度的仓库id 
+            }
+          ],
+          "returnOrder": "0",       // 售后订单标记 0:不是换货订单 1返修发货,直接赔偿,客服补件 2售后调货 可选字段，需要在输入参数optional_fields中写入才能返回
+          "paymentConfirmTime": "2021-04-07 19:36:14"   // 付款确认时间 如果没有付款时间 默认返回0001-01-01 00:00:00 可选字段
+        },
+        "error_Code": 0,
+        "error_Msg": ""
+      }
+
+获取商家已签约承运商
+简要描述：  接口调用示例
+
+￥基础
+获取商家已签约承运商
+请求URL：
+
+https://gw-api.agiso.com/aldsJd/User/GetVenderCarrier
+请求方式：
+
+POST
+公共Header：
+
+公共参数：
+
+参数：
+
+No Data
+返回示例
+
+
+      {
+        "isSuccess": true,
+        "data": [
+          {
+            "id": 2087,
+            "name": "京东快递"
+          },
+          {
+            "id": 1499,
+            "name": "中通速递"
+          },
+          {
+            "id": 465,
+            "name": "邮政EMS"
+          },
+          {
+            "id": 256059,
+            "name": "DHL"
+          },
+          {
+            "id": 1327,
+            "name": "韵达快递"
+          },
+          {
+            "id": 2170,
+            "name": "邮政快递包裹"
+          },
+          {
+            "id": 1665004,
+            "name": "云仓速递"
+          },
+          {
+            "id": 463,
+            "name": "圆通快递"
+          },
+          {
+            "id": 773574,
+            "name": "京东快运"
+          },
+          {
+            "id": 3046,
+            "name": "德邦快递"
+          },
+          {
+            "id": 1819479,
+            "name": "丰网速运"
+          },
+          {
+            "id": 1747,
+            "name": "优速快递"
+          },
+          {
+            "id": 2094,
+            "name": "快捷速递"
+          },
+          {
+            "id": 2096,
+            "name": "联邦快递"
+          },
+          {
+            "id": 2105,
+            "name": "速尔快递"
+          },
+          {
+            "id": 323141,
+            "name": "亚风快运"
+          },
+          {
+            "id": 599866,
+            "name": "跨越速运"
+          },
+          {
+            "id": 605050,
+            "name": "中铁CRE"
+          },
+          {
+            "id": 596494,
+            "name": "安能快递"
+          },
+          {
+            "id": 692584,
+            "name": "品骏快递"
+          },
+          {
+            "id": 732960,
+            "name": "EWE智慧物流"
+          },
+          {
+            "id": 740588,
+            "name": "久耶供应链"
+          },
+          {
+            "id": 668392,
+            "name": "RoyalMail"
+          },
+          {
+            "id": 1362538,
+            "name": "联通码上购"
+          },
+          {
+            "id": 2130,
+            "name": "德邦物流"
+          },
+          {
+            "id": 2462,
+            "name": "天地华宇"
+          },
+          {
+            "id": 4832,
+            "name": "安能物流"
+          },
+          {
+            "id": 5419,
+            "name": "中铁物流"
+          },
+          {
+            "id": 336878,
+            "name": "京东大件物流"
+          },
+          {
+            "id": 247899,
+            "name": "安得物流"
+          },
+          {
+            "id": 680414,
+            "name": "中通快运"
+          },
+          {
+            "id": 832230,
+            "name": "顺心捷达"
+          },
+          {
+            "id": 1325880,
+            "name": "壹米滴答"
+          },
+          {
+            "id": 467,
+            "name": "顺丰快递"
+          },
+          {
+            "id": 171686,
+            "name": "易宅配物流"
+          },
+          {
+            "id": 222693,
+            "name": "贝业新兄弟"
+          },
+          {
+            "id": 731302,
+            "name": "韵达快运"
+          },
+          {
+            "id": 1549,
+            "name": "宅急便"
+          },
+          {
+            "id": 568096,
+            "name": "万家康"
+          },
+          {
+            "id": 6012,
+            "name": "斑马物联网"
+          },
+          {
+            "id": 617027,
+            "name": "POP国际物流"
+          },
+          {
+            "id": 688636,
+            "name": "增速益"
+          },
+          {
+            "id": 689816,
+            "name": "集成"
+          },
+          {
+            "id": 724080,
+            "name": "珠海广丰"
+          },
+          {
+            "id": 1369364,
+            "name": "麦哲伦跨境物流"
+          },
+          {
+            "id": 2171,
+            "name": "中国邮政挂号信"
+          },
+          {
+            "id": 332098,
+            "name": "用户自提"
+          },
+          {
+            "id": 831932,
+            "name": "京东同城速配"
+          },
+          {
+            "id": 3668,
+            "name": "邮政EMS标准快递"
+          },
+          {
+            "id": 1274,
+            "name": "厂家自送"
+          },
+          {
+            "id": 1409,
+            "name": "宅急送"
+          },
+          {
+            "id": 471,
+            "name": "龙邦快递"
+          },
+          {
+            "id": 881232,
+            "name": "众邮快递"
+          }
+        ],
+        "error_Code": 0,
+        "error_Msg": "",
+        "allowRetry": null,
+        "requestId": "20222027142251106"
+      }
+
+游戏点卡订单退款
+简要描述：  接口调用示例
+
+￥基础
+将游戏点卡订单退款掉
+请求URL：
+
+https://gw-api.agiso.com/aldsJd/GameCard/Refund
+请求方式：
+
+POST
+公共Header：
+
+公共参数：
+
+参数：
+
+tid
+是
+Long
+订单号
+返回示例
+
+
+      {
+        "IsSuccess": true,
+        "Data": null
+        "Error_Code": 0,
+        "Error_Msg": ""
+        "AllowRetry": null,
+        "RequestId": "20221027142251106"
+      }
+
+
+游戏点卡直充订单发货
+简要描述：  接口调用示例
+
+￥基础
+直充订单发货（不同的订单类型需要调用不同接口发货）
+请求URL：
+
+https://gw-api.agiso.com/aldsJd/GameCard/RechargeSend
+请求方式：
+
+POST
+公共Header：
+
+公共参数：
+
+参数：
+
+tid
+是
+Long
+订单号
+返回示例
+
+
+      {
+        "IsSuccess": true,
+        "Data": null
+        "Error_Code": 0,
+        "Error_Msg": ""
+        "AllowRetry": null,
+        "RequestId": "20221027142251106"
+      }
+
+游戏点卡点卡订单发货
+简要描述：  接口调用示例
+
+￥基础
+点卡订单发货（不同的订单类型需要调用不同接口发货）
+请求URL：
+
+https://gw-api.agiso.com/aldsJd/GameCard/CardSend
+请求方式：
+
+POST
+公共Header：
+
+公共参数：
+
+参数：
+
+tid
+是
+Long
+订单号
+cardJson
+是
+String
+[{"cardno":"卡号1","cardpass":"卡密1"},{"cardno":"卡号2","cardpass":"卡密2"}]
+返回示例
+
+
+      {
+        "IsSuccess": true,
+        "Data": null
+        "Error_Code": 0,
+        "Error_Msg": ""
+        "AllowRetry": null,
+        "RequestId": "20221027142251106"
+      }
+
+
+通用交易订单退款
+简要描述：  接口调用示例
+
+￥基础
+将通用交易订单退款掉
+请求URL：
+
+https://gw-api.agiso.com/aldsJd/Vtp/Refund
+请求方式：
+
+POST
+公共Header：
+
+公共参数：
+
+参数：
+
+tid
+是
+Long
+订单号
+返回示例
+
+
+      {
+        "IsSuccess": true,
+        "Data": null
+        "Error_Code": 0,
+        "Error_Msg": ""
+        "AllowRetry": null,
+        "RequestId": "20221027142251106"
+      }
+
+通用交易订单发货
+简要描述：  接口调用示例
+
+￥基础
+通用交易订单发货
+请求URL：
+
+https://gw-api.agiso.com/aldsJd/Vtp/Send
+请求方式：
+
+POST
+公共Header：
+
+公共参数：
+
+参数：
+
+tid
+是
+Long
+订单号
+返回示例
+
+
+      {
+        "IsSuccess": true,
+        "Data": null
+        "Error_Code": 0,
+        "Error_Msg": ""
+        "AllowRetry": null,
+        "RequestId": "20221027142251106"
+      }
+
+查询开放平台余额
+简要描述：  接口调用示例
+
+￥基础
+无需授权
+查询开放平台余额
+请求URL：
+
+https://gw-api.agiso.com/open/Bankroll/QueryDeposit
+请求方式：
+
+POST
+公共Header：
+
+公共参数：
+
+参数：
+
+No Data
+返回示例
+
+
+    {
+      "IsSuccess": true,
+      "Data": 9610.737, // 余额
+      "Error_Code": 0,
+      "Error_Msg": "",
+      "AllowRetry": null,
+      "RequestId": "2023022717413855"
+    }
+
+
+删除商家授权
+简要描述：  接口调用示例
+
+￥基础
+开发者自行删除对商家的授权
+请求URL：
+
+https://gw-api.agiso.com/aldsJd/Sys/TokenDelete
+请求方式：
+
+POST
+公共Header：
+
+公共参数：
+
+参数：
+
+在公共Header处，上传相应Authorization参数，就能删除相应的商家
+返回示例
+
+
+  {
+    "IsSuccess": false,
+    "Error_Msg": "删除失败",
+  }
+
+付款成功后通知
+简要描述：  推送示例
+
+￥高级
+付款成功后，推送对应消息。
+推送的签名请务必验证，以验证数据来源的合法性。验证方法参考以下说明。
+推送时，有可能消息重复推送。实际开发中，请一定要在使用消息前进行去重判断。主要依据是订单编号Tid和订单状态。
+推送方式，用jquery做示例：$.post('http://test.com/agiso?timestamp=11222212121&sign=f8aa165fc951f266667e0605d78b93af&aopic=32768', { json: '{"Tid":"592823138",......}' })
+推送参数：
+
+fromPlatform
+string
+Query/Get
+平台，参数值：TbAcs,TbAlds,TbArs,Print,Acpr,PddAlds,AldsIdle,AldsJd,AldsDoudian,AldsKwai,AldsYouzan,AldsWeidian,AldsWxVideoShop,AldsXhs,Open
+timestamp
+Number
+Query/Get
+时间戳
+aopic
+Number
+Query/Get
+推送类型，1:付款成功后;
+sign
+String
+Query/Get
+签名算法：
+   将json和timestamp参数名和参数值组合起来（注意：json在前，timestamp在后），然后前后添加上AppSecret ，再进行Md5加密（加密算法参考接入指南-完整调用API示例代码中MD5算法）。
+例：
+url：http://test.com/agiso?timestamp=11222212121&sign=f8aa165fc951f266667e0605d78b93af&aopic=256，
+postData: { json: {"Tid":2067719225654838,"Status":"WAIT_BUYER_CONFIRM_GOODS",......,"TotalFee":"3.00"} }，
+_appsecret: 9f8g9d78sg9d8f8ew9f89ds9f8ds9af8(开发者AppSecret)，
+连接后的串: 9f8g9d78sg9d8f8ew9f89ds9f8ds9af8json{"Tid":2067719225654838,"Status":"WAIT_BUYER_CONFIRM_GOODS",......,"TotalFee":"3.00"}timestamp112222121219f8g9d78sg9d8f8ew9f89ds9f8ds9af8
+再对连接后的字符串，进行MD5加密，
+MD5结果: f8aa165fc951f266667e0605d78b93af（不区分大小写）
+json
+String
+Form/Post
+推送消息,如：
+{
+ "orderId": 242781471563, // 订单号
+ "venderId": 1, // 商家编号
+ "orderStatus":"WAIT_GOODS_RECEIVE_CONFIRM" // 订单状态：不同订单类型状态不一样，需要自行收集。
+ "erpOrderStatus": 2,// Erp订单状态：1-新订单; 2-等待付款; 3-等待付款确认; 4-延迟付款确认; 5-暂停; 6-店长最终审核; 7-等待打印; 8-等待出库; 9-等待打包; 10-等待发货; 11-自提途中; 12-上门提货; 13-自提退货; 14-确认自提; 15-等待回执; 16-等待确认收货; 17-配送退货; 18-货到付款确认; 19-完成;
+ "orderType": 21, // 订单类型：21-FBP; 22-SOP; 34-GameCard; 75-LOC; 112-FCS; 142-IBS;
+}
+
+付款成功后，自动发货完成通知
+简要描述：  推送示例
+
+￥高级
+付款成功后，自动发货完成，推送对应消息。
+推送的签名请务必验证，以验证数据来源的合法性。验证方法参考以下说明。
+推送时，有可能消息重复推送。实际开发中，请一定要在使用消息前进行去重判断。主要依据是订单编号Tid和订单状态。
+推送方式，用jquery做示例：$.post('http://test.com/agiso?timestamp=11222212121&sign=f8aa165fc951f266667e0605d78b93af&aopic=32768', { json: '{"Tid":"592823138",......}' })
+推送参数：
+
+fromPlatform
+string
+Query/Get
+平台，参数值：TbAcs,TbAlds,TbArs,Print,Acpr,PddAlds,AldsIdle,AldsJd,AldsDoudian,AldsKwai,AldsYouzan,AldsWeidian,AldsWxVideoShop,AldsXhs,Open
+timestamp
+Number
+Query/Get
+时间戳
+aopic
+Number
+Query/Get
+推送类型，2:付款成功后，自动发货完成;
+sign
+String
+Query/Get
+签名算法：
+   将json和timestamp参数名和参数值组合起来（注意：json在前，timestamp在后），然后前后添加上AppSecret ，再进行Md5加密（加密算法参考接入指南-完整调用API示例代码中MD5算法）。
+例：
+url：http://test.com/agiso?timestamp=11222212121&sign=f8aa165fc951f266667e0605d78b93af&aopic=256，
+postData: { json: {"Tid":2067719225654838,"Status":"WAIT_BUYER_CONFIRM_GOODS",......,"TotalFee":"3.00"} }，
+_appsecret: 9f8g9d78sg9d8f8ew9f89ds9f8ds9af8(开发者AppSecret)，
+连接后的串: 9f8g9d78sg9d8f8ew9f89ds9f8ds9af8json{"Tid":2067719225654838,"Status":"WAIT_BUYER_CONFIRM_GOODS",......,"TotalFee":"3.00"}timestamp112222121219f8g9d78sg9d8f8ew9f89ds9f8ds9af8
+再对连接后的字符串，进行MD5加密，
+MD5结果: f8aa165fc951f266667e0605d78b93af（不区分大小写）
+json
+String
+Form/Post
+推送消息,如：
+{
+                "Tid":"2215900041470428",       // 原始订单号
+                "PlatformShopId":"2131430925",  // 原始店铺Id
+                "AldsType":1,                   // 自动发货的类型：1付款后发货、2买家确认收货后、4好评后赠送
+                "CreateTime":"2022-08-29T10:12:51", // 原始订单创建时间/下单时间。
+                "PayTime":"2022-06-08T12:05:52",    // 原始付款时间
+                "Status":"70",                      // 原始订单状态，具体查看平台订单详情
+                "Orders":[                          // 子订单列表
+                    {
+                        "Num":2,                    // 购买数量
+                        "GoodsName":"保鲜可抽真空红酒塞不锈钢葡萄酒瓶塞 红酒塞子酒具用品",// 商品名称
+                        "GoodsId":"888390669925",   // 原始商品id
+                        "OuterGoodsId":null,        // 原始商品外部编码
+                        "SkuId":"888390671925",     // 原始商品SkuId
+                        "OuterSkuId":"",            // 原始商品外部SkuId
+                        "Oid":"2215900041470428",   // 原始无返回，自动发货生成格式（Tid#SkuId或Tid）
+                        "SpType":1,                 // 自动发货内容方式：1单卡种、2组合卡、3无卡、4、接口
+                        "SpecName":"",              // 原始sku信息
+                        "SendCards":[               // 自动发货卡券列表
+                            {
+                                "Card":"15449",     // 卡号
+                                "Pwd":""            // 密码
+                            },
+                            {
+                                "Card":"15450",
+                                "Pwd":""
+                            }
+                        ]
+                    }
+                ]
+            }
+
+
+确认收货后，自动发货完成通知
+简要描述：  推送示例
+
+￥高级
+确认收货后，自动发货完成，推送对应消息。
+推送的签名请务必验证，以验证数据来源的合法性。验证方法参考以下说明。
+推送时，有可能消息重复推送。实际开发中，请一定要在使用消息前进行去重判断。主要依据是订单编号Tid和订单状态。
+推送方式，用jquery做示例：$.post('http://test.com/agiso?timestamp=11222212121&sign=f8aa165fc951f266667e0605d78b93af&aopic=32768', { json: '{"Tid":"592823138",......}' })
+推送参数：
+
+fromPlatform
+string
+Query/Get
+平台，参数值：TbAcs,TbAlds,TbArs,Print,Acpr,PddAlds,AldsIdle,AldsJd,AldsDoudian,AldsKwai,AldsYouzan,AldsWeidian,AldsWxVideoShop,AldsXhs,Open
+timestamp
+Number
+Query/Get
+时间戳
+aopic
+Number
+Query/Get
+推送类型，4:确认收货后，自动发货完成;
+sign
+String
+Query/Get
+签名算法：
+   将json和timestamp参数名和参数值组合起来（注意：json在前，timestamp在后），然后前后添加上AppSecret ，再进行Md5加密（加密算法参考接入指南-完整调用API示例代码中MD5算法）。
+例：
+url：http://test.com/agiso?timestamp=11222212121&sign=f8aa165fc951f266667e0605d78b93af&aopic=256，
+postData: { json: {"Tid":2067719225654838,"Status":"WAIT_BUYER_CONFIRM_GOODS",......,"TotalFee":"3.00"} }，
+_appsecret: 9f8g9d78sg9d8f8ew9f89ds9f8ds9af8(开发者AppSecret)，
+连接后的串: 9f8g9d78sg9d8f8ew9f89ds9f8ds9af8json{"Tid":2067719225654838,"Status":"WAIT_BUYER_CONFIRM_GOODS",......,"TotalFee":"3.00"}timestamp112222121219f8g9d78sg9d8f8ew9f89ds9f8ds9af8
+再对连接后的字符串，进行MD5加密，
+MD5结果: f8aa165fc951f266667e0605d78b93af（不区分大小写）
+json
+String
+Form/Post
+推送消息,如：
+{
+                "Tid":"2215900041470428",       // 原始订单号
+                "PlatformShopId":"2131430925",  // 原始店铺Id
+                "AldsType":2,                   // 自动发货的类型：1付款后发货、2买家确认收货后、4好评后赠送
+                "CreateTime":"2022-08-29T10:12:51", // 原始订单创建时间/下单时间。
+                "PayTime":"2022-06-08T12:05:52",    // 原始付款时间
+                "Status":"70",                      // 原始订单状态，具体查看平台订单详情
+                "Orders":[                          // 子订单列表
+                    {
+                        "Num":2,                    // 购买数量
+                        "GoodsName":"保鲜可抽真空红酒塞不锈钢葡萄酒瓶塞 红酒塞子酒具用品",// 商品名称
+                        "GoodsId":"888390669925",   // 原始商品id
+                        "OuterGoodsId":null,        // 原始商品外部编码
+                        "SkuId":"888390671925",     // 原始商品SkuId
+                        "OuterSkuId":"",            // 原始商品外部SkuId
+                        "Oid":"2215900041470428",   // 原始无返回，自动发货生成格式（Tid#SkuId或Tid）
+                        "SpType":1,                 // 自动发货内容方式：1单卡种、2组合卡、3无卡、4、接口
+                        "SpecName":"",              // 原始sku信息
+                        "SendCards":[               // 自动发货卡券列表
+                            {
+                                "Card":"15449",     // 卡号
+                                "Pwd":""            // 密码
+                            },
+                            {
+                                "Card":"15450",
+                                "Pwd":""
+                            }
+                        ]
+                    }
+                ]
+            }
+
+
+通用交易订单支付成功后通知
+简要描述：  推送示例
+
+￥基础
+通用交易订单支付成功后，推送对应消息。
+推送的签名请务必验证，以验证数据来源的合法性。验证方法参考以下说明。
+推送时，有可能消息重复推送。实际开发中，请一定要在使用消息前进行去重判断。主要依据是订单编号Tid和订单状态。
+推送方式，用jquery做示例：$.post('http://test.com/agiso?timestamp=11222212121&sign=f8aa165fc951f266667e0605d78b93af&aopic=32768', { json: '{"Tid":"592823138",......}' })
+推送参数：
+
+fromPlatform
+string
+Query/Get
+平台，参数值：TbAcs,TbAlds,TbArs,Print,Acpr,PddAlds,AldsIdle,AldsJd,AldsDoudian,AldsKwai,AldsYouzan,AldsWeidian,AldsWxVideoShop,AldsXhs,Open
+timestamp
+Number
+Query/Get
+时间戳
+aopic
+Number
+Query/Get
+推送类型，16:通用交易订单支付成功;
+sign
+String
+Query/Get
+签名算法：
+   将json和timestamp参数名和参数值组合起来（注意：json在前，timestamp在后），然后前后添加上AppSecret ，再进行Md5加密（加密算法参考接入指南-完整调用API示例代码中MD5算法）。
+例：
+url：http://test.com/agiso?timestamp=11222212121&sign=f8aa165fc951f266667e0605d78b93af&aopic=256，
+postData: { json: {"Tid":2067719225654838,"Status":"WAIT_BUYER_CONFIRM_GOODS",......,"TotalFee":"3.00"} }，
+_appsecret: 9f8g9d78sg9d8f8ew9f89ds9f8ds9af8(开发者AppSecret)，
+连接后的串: 9f8g9d78sg9d8f8ew9f89ds9f8ds9af8json{"Tid":2067719225654838,"Status":"WAIT_BUYER_CONFIRM_GOODS",......,"TotalFee":"3.00"}timestamp112222121219f8g9d78sg9d8f8ew9f89ds9f8ds9af8
+再对连接后的字符串，进行MD5加密，
+MD5结果: f8aa165fc951f266667e0605d78b93af（不区分大小写）
+json
+String
+Form/Post
+推送消息,如：
+{
+ "PlatformShopId": 12356, // 店铺Id
+ "JdOrderNo": 1651415135, // 订单编号
+ "ProduceStatus": 3, // 京东侧订单状态，1：生产成功；2：生产失败；3：生产中；4：生产异常
+ "PayTime": "2022-09-26 16:04:00", // 支付时间
+ "NotifyUrl": "http://xxx.com/cb", // 回调通知地址（代理商充值成功后回调通知地址）
+ "ProduceAccount": "18212345678", // 充值号码（卡密类型商品不传）
+ "Quantity": 1, // 数量（直充类型商品只能买一个）
+ "SkuId": "31223", 
+ "TotalPrice": 100.00, // 该笔订单总价格
+ "VendorId": 8465, // 商家ID
+ "ExpandStr": "{}", // 特殊属性
+ "CreateTime": "2022-09-26 16:04:00", // 阿奇索侧创建时间
+}
+
+游戏点卡订单支付成功后通知
+简要描述：  推送示例
+
+￥基础
+游戏点卡订单支付成功后，推送对应消息。
+推送的签名请务必验证，以验证数据来源的合法性。验证方法参考以下说明。
+推送时，有可能消息重复推送。实际开发中，请一定要在使用消息前进行去重判断。主要依据是订单编号Tid和订单状态。
+推送方式，用jquery做示例：$.post('http://test.com/agiso?timestamp=11222212121&sign=f8aa165fc951f266667e0605d78b93af&aopic=32768', { json: '{"Tid":"592823138",......}' })
+推送参数：
+
+fromPlatform
+string
+Query/Get
+平台，参数值：TbAcs,TbAlds,TbArs,Print,Acpr,PddAlds,AldsIdle,AldsJd,AldsDoudian,AldsKwai,AldsYouzan,AldsWeidian,AldsWxVideoShop,AldsXhs,Open
+timestamp
+Number
+Query/Get
+时间戳
+aopic
+Number
+Query/Get
+推送类型，8:游戏点卡订单支付成功后;
+sign
+String
+Query/Get
+签名算法：
+   将json和timestamp参数名和参数值组合起来（注意：json在前，timestamp在后），然后前后添加上AppSecret ，再进行Md5加密（加密算法参考接入指南-完整调用API示例代码中MD5算法）。
+例：
+url：http://test.com/agiso?timestamp=11222212121&sign=f8aa165fc951f266667e0605d78b93af&aopic=256，
+postData: { json: {"Tid":2067719225654838,"Status":"WAIT_BUYER_CONFIRM_GOODS",......,"TotalFee":"3.00"} }，
+_appsecret: 9f8g9d78sg9d8f8ew9f89ds9f8ds9af8(开发者AppSecret)，
+连接后的串: 9f8g9d78sg9d8f8ew9f89ds9f8ds9af8json{"Tid":2067719225654838,"Status":"WAIT_BUYER_CONFIRM_GOODS",......,"TotalFee":"3.00"}timestamp112222121219f8g9d78sg9d8f8ew9f89ds9f8ds9af8
+再对连接后的字符串，进行MD5加密，
+MD5结果: f8aa165fc951f266667e0605d78b93af（不区分大小写）
+json
+String
+Form/Post
+推送消息,如：
+{
+ "PlatformShopId": 242781471563, // 店铺Id
+ "CustomerId": 1325321, // 商家Id
+ "OrderId": 13151325, // 订单号
+ "OrderType": 1, // 订单类型，1：直充；2：点卡
+ "Pin": "p21312", // 下单用户 pin
+ "BuyNum": 1, // 购买数量
+ "SkuId": 65145, // SkuId
+ "BrandId": 122, // 对应京东游戏品牌 ID
+ "UserIp": 1.1.1.1, // 用户 ip 地址
+ "TotalPrice": 12.36, // 订单总价
+ "CreateTime": "2022-09-26 16:04:00", // 阿奇索侧创建时间
+ "Features": {}, 
+ "SourceType": 1, // 订单来源渠道(订单来源渠道：0：主站； 1：惊喜)
+ "FacePrice": 100, // 面值
+ "GameAccount": "asdfasd", // 游戏帐号
+ "Permit": "999999", // 通行证
+ "GameAccountType": { // 账号类型
+    "Id":1,
+    "Name":"名称"
+ },
+ "ChargeType": { // 充值类型
+    "Id":1,
+    "Name":"名称"
+ },
+ "GameArea": { // 游戏区
+    "Id":1,
+    "Name":"名称"
+ },
+ "GameServer": { // 游戏所在服
+    "Id":1,
+    "Name":"名称"
+ }
+}
+
+
+错误代码
+
+1
+无效AccessToken
+2
+Api调用限制
+3
+业务异常
+4
+验签失败
+5
+参数错误
+6
+部分失败
+7
+全部失败
+8
+授权失败
+9
+交易不存在
+10
+淘宝Api请求错误
+11
+没有数据
+12
+已经发过旺旺消息
+13
+超时
+14
+生成旺旺消息失败
+15
+宝贝不存在
+16
+预存款余额不足了，限制接口调用
+17
+应用已被禁用
+18
+业务站点未授权
+19
+退款失败
+20
+单笔退款最大金额限制
+21
+退款总额限制
+22
+退款次数限制
+23
+闲鱼Api请求错误
+24
+更新订单状态失败
+25
+发送消息限制
+26
+拼多多API请求错误
+27
+京东API请求错误
+28
+无API接口权限
+30
+快手API请求错误
+31
+有赞API请求错误
+32
+微盟API请求错误
+33
+微店API请求错误
+34
+拒绝退款失败
+35
+微信小店API请求错误
+114
+没有数据
+备注
+
+无
+
+
+收费规则
+基础
+0.002 0.001
+按实际调用量计费
+高级
+0.004 0.002
+按实际调用量计费
+增值
+0.008 0.004
+按实际调用量计费
+
+JavaC#PHPPython
+ 
+  Map<String, String> data = new HashMap<String, String>();
+  data.put("modifyTimeStart", "2016-07-13 10:44:30");
+  data.put("pageNo", "1");
+  data.put("pageSize", "20");
+  //timestamp 为调用Api的公共参数，详细说明参考接入指南
+  data.put("timestamp", '1468476350');//假设当前时间为2016/7/14 14:5:50
+  //对键排序
+  String[] keys = data.keySet().toArray(new String[0]);
+  Arrays.sort(keys);
+  StringBuilder query = new StringBuilder();
+  //头加入AppSecret ，假设AppSecret值为******************
+  query.append(this.getClientSecret());
+  for (String key : keys) {
+      String value = data.get(key);
+      query.append(key).append(value);
+  }
+  //到这query的值为******************modifyTimeStart2016-07-13 10:44:30pageNo1pageSize20timestamp1468476350
+  //尾加入AppSecret
+  query.append(this.getClientSecret()); //query=******************modifyTimeStart2016-07-13 10:44:30pageNo1pageSize20timestamp1468476350******************
+  byte[] md5byte = encryptMD5(query.toString());
+  //sign 为调用Api的公共参数，详细说明参考接入指南
+  data.put("sign", byte2hex(md5byte)); //byte2hex(md5byte) = 935671331572EBF7F419EBB55EA28558
+  
+  // Md5摘要
+  public byte[] encryptMD5(String data) throws NoSuchAlgorithmException, UnsupportedEncodingException {
+      MessageDigest md5 = MessageDigest.getInstance("MD5");
+      return md5.digest(data.getBytes("UTF-8"));
+  }
+
+  public String byte2hex(byte[] bytes) {
+      StringBuilder sign = new StringBuilder();
+      for (int i = 0; i < bytes.length; i++) {
+          String hex = Integer.toHexString(bytes[i] & 0xFF);
+          if (hex.length() == 1) {
+              sign.append("0");
+          }
+          sign.append(hex.toLowerCase());
+      }
+      return sign.toString();
+  }
+import hashlib
+  from collections import OrderedDict
+  
+  def generate_sign(params, app_secret):
+      # 1. 对参数键按字典序排序
+      sorted_params = OrderedDict(sorted(params.items(), key=lambda x: x[0]))
+  
+      # 2. 拼接字符串：首尾加入 client_secret
+      query_str = app_secret
+      for key, value in sorted_params.items():
+          query_str += f"{key}{value}"
+      query_str += app_secret
+  
+      # 3. 计算 MD5 并转为小写十六进制
+      md5 = hashlib.md5()
+      md5.update(query_str.encode('utf-8'))
+      sign = md5.hexdigest().lower()
+      return sign
+  
+  # 示例使用
+  if __name__ == "__main__":
+      # 准备参数
+      params = {
+          "tids": "1234567789",
+          "timestamp": "1468476350"  # 假设当前时间为 2016/7/14 14:5:50
+      }
+      app_secret = "******************"  # 替换为实际 AppSecret
+  
+      # 生成签名并添加到参数
+      sign = generate_sign(params, app_secret)
+      params["sign"] = sign
+
+
+见问题
+提问：调用接口时提示验证签名失败？
+回答：检查调用接口的机器的时间是否差别太大。接口参数排序的时候，不要忽略大小写。
+提问：接收推送时sign与自己算出来的不一致，验证不通过？
+回答：请留意，部份开发语言，在对接收到的json串进行url_decode时，无法自动把+号转化为空格。会导致签名计算不通过。比如：“Created":"2020-01-01+15:00:00"正确的url_decode结果应为：“Created":"2020-01-01 15:00:00"
+提问：不同推送类型的aopic值是多少？
+回答：1：买家拍下；2：买家付款；524288：卖家修改备注；2048：自动发货成功；1048576：卖家发货；4：买家确认收货；16：双方已评；256：退款创建；32768：退款关闭；65536：退款成功；131072：卖家同意退货；262144：卖家拒绝退货；2097152：买家付款（新版买家付款）
+
+
+
+
+
+
+      
+
+
+

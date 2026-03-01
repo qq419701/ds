@@ -1,0 +1,157 @@
+{% extends "layouts/base.html" %}
+{% block title %}统计报表{% endblock %}
+
+{% block extra_css %}
+<style>
+.charts-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 20px; }
+.chart-card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.chart-title { font-size: 15px; font-weight: bold; margin-bottom: 12px; }
+.chart-box { width: 100%; height: 300px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-title">📊 统计报表</div>
+
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-value">{{ total_orders }}</div>
+            <div class="stat-label">总订单数</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">¥{{ '%.2f' % total_amount }}</div>
+            <div class="stat-label">总金额</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ completed_orders }}</div>
+            <div class="stat-label">已完成</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ pending_orders }}</div>
+            <div class="stat-label">待处理</div>
+        </div>
+    </div>
+</div>
+
+<!-- ECharts 图表 -->
+<div class="charts-row">
+    <div class="chart-card">
+        <div class="chart-title">📈 近7天订单趋势</div>
+        <div id="trendChart" class="chart-box"></div>
+    </div>
+    <div class="chart-card">
+        <div class="chart-title">💰 近7天金额趋势</div>
+        <div id="amountChart" class="chart-box"></div>
+    </div>
+    <div class="chart-card">
+        <div class="chart-title">🏪 店铺订单分布</div>
+        <div id="shopPieChart" class="chart-box"></div>
+    </div>
+    <div class="chart-card">
+        <div class="chart-title">📋 订单状态分布</div>
+        <div id="statusPieChart" class="chart-box"></div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title">🏪 店铺统计</div>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>店铺名称</th>
+                    <th>订单数</th>
+                    <th>总金额</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stat in shop_stats %}
+                <tr>
+                    <td>{{ stat.shop_name }}</td>
+                    <td>{{ stat.order_count }}</td>
+                    <td>¥{{ '%.2f' % (stat.total_amount / 100) }}</td>
+                </tr>
+                {% endfor %}
+                {% if not shop_stats %}
+                <tr><td colspan="3" class="text-center">暂无数据</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script>
+var dailyStats = {{ daily_stats | tojson }};
+var shopPie = {{ shop_pie | tojson }};
+var statusDist = {{ status_distribution | tojson }};
+
+// 近7天订单趋势折线图
+var trendChart = echarts.init(document.getElementById('trendChart'));
+trendChart.setOption({
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['订单数'] },
+    xAxis: { type: 'category', data: dailyStats.map(function(d) { return d.date; }) },
+    yAxis: { type: 'value', name: '订单数' },
+    series: [{
+        name: '订单数',
+        type: 'line',
+        smooth: true,
+        data: dailyStats.map(function(d) { return d.count; }),
+        itemStyle: { color: '#1890ff' },
+        areaStyle: { color: 'rgba(24,144,255,0.1)' }
+    }]
+});
+
+// 近7天金额趋势柱状图
+var amountChart = echarts.init(document.getElementById('amountChart'));
+amountChart.setOption({
+    tooltip: { trigger: 'axis' },
+    xAxis: { type: 'category', data: dailyStats.map(function(d) { return d.date; }) },
+    yAxis: { type: 'value', name: '金额(元)' },
+    series: [{
+        type: 'bar',
+        data: dailyStats.map(function(d) { return d.amount; }),
+        itemStyle: { color: '#52c41a' }
+    }]
+});
+
+// 店铺订单分布饼图
+var shopPieChart = echarts.init(document.getElementById('shopPieChart'));
+shopPieChart.setOption({
+    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    legend: { orient: 'vertical', right: 10, top: 'center' },
+    series: [{
+        type: 'pie',
+        radius: ['40%', '70%'],
+        data: shopPie,
+        label: { formatter: '{b}\n{d}%' }
+    }]
+});
+
+// 订单状态分布饼图
+var statusPieChart = echarts.init(document.getElementById('statusPieChart'));
+statusPieChart.setOption({
+    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    legend: { orient: 'vertical', right: 10, top: 'center' },
+    series: [{
+        type: 'pie',
+        radius: '70%',
+        data: statusDist,
+        label: { formatter: '{b}\n{d}%' }
+    }]
+});
+
+// 响应式resize
+window.addEventListener('resize', function() {
+    trendChart.resize();
+    amountChart.resize();
+    shopPieChart.resize();
+    statusPieChart.resize();
+});
+</script>
+{% endblock %}
+

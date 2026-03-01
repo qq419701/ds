@@ -1,0 +1,558 @@
+{% extends "layouts/base.html" %}
+{% block title %}订单管理{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-title">
+        📦 订单管理
+        <div style="float: right; display: flex; gap: 8px; align-items: center;">
+            <span class="badge">总计: {{ pagination.total }} 个订单</span>
+            <a href="{{ url_for('order.export_orders', **request.args) }}" class="btn btn-sm btn-primary">📤 导出CSV</a>
+            {% if current_user.can_deliver or current_user.is_admin %}
+            <button class="btn btn-sm btn-success" onclick="batchNotifySuccess()">✅ 批量通知成功</button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 搜索和筛选 -->
+    <form method="GET" action="{{ url_for('order.order_list') }}" class="mb-4">
+        <div class="form-row">
+            <div class="form-group">
+                <input type="text" name="keyword" class="form-control" placeholder="订单号/京东订单号/商品/账号" value="{{ request.args.get('keyword', '') }}">
+            </div>
+            <div class="form-group">
+                <select name="order_status" class="form-control">
+                    <option value="">全部状态</option>
+                    <option value="0" {{ 'selected' if request.args.get('order_status') == '0' }}>待处理</option>
+                    <option value="1" {{ 'selected' if request.args.get('order_status') == '1' }}>处理中</option>
+                    <option value="2" {{ 'selected' if request.args.get('order_status') == '2' }}>已完成</option>
+                    <option value="3" {{ 'selected' if request.args.get('order_status') == '3' }}>已取消</option>
+                    <option value="4" {{ 'selected' if request.args.get('order_status') == '4' }}>已退款</option>
+                    <option value="5" {{ 'selected' if request.args.get('order_status') == '5' }}>异常</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <select name="order_type" class="form-control">
+                    <option value="">全部订单类型</option>
+                    <option value="1" {{ 'selected' if request.args.get('order_type') == '1' }}>直充</option>
+                    <option value="2" {{ 'selected' if request.args.get('order_type') == '2' }}>卡密</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <select name="shop_id" class="form-control">
+                    <option value="">全部店铺</option>
+                    {% for shop in shops %}
+                    <option value="{{ shop.id }}" {{ 'selected' if request.args.get('shop_id') == shop.id|string }}>{{ shop.shop_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary">🔍 搜索</button>
+                <a href="{{ url_for('order.order_list') }}" class="btn">重置</a>
+            </div>
+        </div>
+    </form>
+
+    <!-- 全选 -->
+    {% if current_user.can_deliver or current_user.is_admin %}
+    <div style="margin-bottom: 8px;">
+        <label style="cursor:pointer;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"> 全选</label>
+    </div>
+    {% endif %}
+
+    <!-- 订单列表 -->
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    {% if current_user.can_deliver or current_user.is_admin %}<th style="width:36px;"></th>{% endif %}
+                    <th>京东订单号</th>
+                    <th>店铺</th>
+                    <th>店铺类型</th>
+                    <th>订单类型</th>
+                    <th>状态</th>
+                    <th>商品信息</th>
+                    <th>金额</th>
+                    <th>数量</th>
+                    <th>创建时间</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if orders %}
+                    {% for order in orders %}
+                    <tr>
+                        {% if current_user.can_deliver or current_user.is_admin %}
+                        <td><input type="checkbox" class="order-checkbox" value="{{ order.id }}" data-status="{{ order.order_status }}" data-type="{{ order.order_type }}"></td>
+                        {% endif %}
+                        <td>
+                            <a href="javascript:void(0)" onclick="showOrderDetail({{ order.id }})" title="{{ order.order_no }}">
+                                {{ order.jd_order_no }}
+                            </a>
+                        </td>
+                        <td>
+                            {% if order.shop %}
+                                {{ order.shop.shop_name }}
+                            {% else %}
+                                <span class="text-muted">未知店铺</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if order.shop_type == 1 %}
+                                <span class="badge badge-info">游戏点卡</span>
+                            {% else %}
+                                <span class="badge badge-success">通用交易</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if order.order_type == 1 %}
+                                <span class="badge badge-primary">⚡ 直充</span>
+                            {% else %}
+                                <span class="badge badge-purple">🔑 卡密</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if order.order_status == 0 %}
+                                <span class="badge badge-warning">⏳ 待处理</span>
+                            {% elif order.order_status == 1 %}
+                                <span class="badge badge-info">🔄 处理中</span>
+                            {% elif order.order_status == 2 %}
+                                <span class="badge badge-success">✅ 已完成</span>
+                            {% elif order.order_status == 3 %}
+                                <span class="badge badge-secondary">❌ 已取消</span>
+                            {% elif order.order_status == 4 %}
+                                <span class="badge badge-danger">💰 已退款</span>
+                            {% elif order.order_status == 5 %}
+                                <span class="badge badge-error">⚠️ 异常</span>
+                            {% else %}
+                                <span class="badge">未知({{ order.order_status }})</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span title="{{ order.product_info or '-' }}">
+                                {% if order.product_info and order.product_info|length > 10 %}
+                                    {{ order.product_info[:10] }}...
+                                {% else %}
+                                    {{ order.product_info or '-' }}
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td>¥{{ '%.2f'|format(order.amount / 100) }}</td>
+                        <td>{{ order.quantity }}</td>
+                        <td>{{ order.create_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <div class="action-buttons">
+                                <a href="javascript:void(0)" onclick="showOrderDetail({{ order.id }})" class="btn btn-sm btn-detail">📄 详情</a>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-success dropdown-toggle">操作 ▼</button>
+                                    <div class="dropdown-menu">
+                                        {% if current_user.is_admin or current_user.can_deliver %}
+                                        <a href="javascript:void(0)" onclick="notifySuccess({{ order.id }})">✅ 通知成功</a>
+                                        {% endif %}
+                                        {% if current_user.is_admin or current_user.can_refund %}
+                                        <a href="javascript:void(0)" onclick="notifyRefund({{ order.id }})">💰 通知退款</a>
+                                        {% endif %}
+                                        {% if (current_user.is_admin or current_user.can_deliver) and order.shop and order.shop.card91_api_key and order.order_type == 2 %}
+                                        <a href="javascript:void(0)" onclick="card91Deliver({{ order.id }})">🎫 91卡券自动发卡</a>
+                                        {% endif %}
+                                        <div class="dropdown-divider"></div>
+                                        <div class="dropdown-submenu">
+                                            <a href="javascript:void(0)">🔧 自助联调 ▼</a>
+                                            <div class="dropdown-submenu-content">
+                                                <a href="javascript:void(0)" onclick="debugSuccess({{ order.id }})">⚠️ 充值成功</a>
+                                                <a href="javascript:void(0)" onclick="debugProcessing({{ order.id }})">⚠️ 充值中</a>
+                                                <a href="javascript:void(0)" onclick="debugFailed({{ order.id }})">⚠️ 充值失败</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="{% if current_user.can_deliver or current_user.is_admin %}11{% else %}10{% endif %}" class="text-center text-muted">暂无订单数据</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 分页 -->
+    {% if pagination.pages > 1 %}
+    <div class="pagination">
+        {% if pagination.has_prev %}
+            <a href="{{ url_for('order.order_list', page=pagination.prev_num, keyword=request.args.get('keyword', ''), order_status=request.args.get('order_status', ''), order_type=request.args.get('order_type', ''), shop_id=request.args.get('shop_id', '')) }}" class="page-link">上一页</a>
+        {% endif %}
+
+        {% for page in pagination.iter_pages() %}
+            {% if page %}
+                {% if page == pagination.page %}
+                    <span class="page-link active">{{ page }}</span>
+                {% else %}
+                    <a href="{{ url_for('order.order_list', page=page, keyword=request.args.get('keyword', ''), order_status=request.args.get('order_status', ''), order_type=request.args.get('order_type', ''), shop_id=request.args.get('shop_id', '')) }}" class="page-link">{{ page }}</a>
+                {% endif %}
+            {% else %}
+                <span class="page-link">...</span>
+            {% endif %}
+        {% endfor %}
+
+        {% if pagination.has_next %}
+            <a href="{{ url_for('order.order_list', page=pagination.next_num, keyword=request.args.get('keyword', ''), order_status=request.args.get('order_status', ''), order_type=request.args.get('order_type', ''), shop_id=request.args.get('shop_id', '')) }}" class="page-link">下一页</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- 自动刷新 -->
+    <div style="text-align:center;margin-top:16px;">
+        <button id="autoRefreshBtn" class="btn btn-sm" onclick="toggleAutoRefresh()">⏱ 开启自动刷新</button>
+        <span id="refreshCountdown" style="margin-left:8px;color:#666;font-size:13px;"></span>
+    </div>
+</div>
+
+<!-- 订单详情弹窗 -->
+<div id="orderModal" class="modal">
+    <div class="modal-content" style="position: relative; width: 450px; min-width: 400px; max-width: 95vw; margin: 2vh auto; max-height: 90vh; overflow-y: auto; overflow-x: hidden; padding: 0;">
+        <div class="modal-header">
+            <h3>📄 订单详情</h3>
+            <span class="modal-close" onclick="closeOrderModal()">&times;</span>
+        </div>
+        <div class="modal-body" id="orderDetailContent">
+            <div style="text-align: center; padding: 40px;">
+                <div class="loading-spinner"></div>
+                <p>加载中...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style data-ts="1771484721">
+/* Cache Buster: 1771484342 */
+
+.badge {
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+    display: inline-block;
+}
+.badge-warning { background: #faad14; color: white; }
+.badge-info { background: #1890ff; color: white; }
+.badge-success { background: #52c41a; color: white; }
+.badge-secondary { background: #8c8c8c; color: white; }
+.badge-danger { background: #ff4d4f; color: white; }
+.badge-error { background: #fa541c; color: white; }
+.badge-primary { background: #722ed1; color: white; }
+.badge-purple { background: #eb2f96; color: white; }
+
+.table-responsive { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td {
+    padding: 12px;
+    border-bottom: 1px solid #f0f0f0;
+    text-align: left;
+    white-space: nowrap;
+}
+.table th { background: #fafafa; font-weight: 600; }
+.table tbody tr:hover { background: #f5f5f5; }
+
+.action-buttons { display: flex; gap: 5px; align-items: center; }
+.btn-detail { background: #1890ff; color: white; }
+.btn-detail:hover { background: #096dd9; }
+
+.dropdown { position: relative; display: inline-block; }
+.dropdown-toggle {
+    background: #52c41a;
+    color: white;
+    border: none;
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+.dropdown-toggle:hover { background: #389e0d; }
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    background: white;
+    min-width: 160px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    border-radius: 4px;
+    z-index: 1000;
+    padding: 4px 0;
+}
+.dropdown:hover .dropdown-menu { display: block; }
+.dropdown-menu a {
+    display: block;
+    padding: 8px 16px;
+    color: #333;
+    text-decoration: none;
+    font-size: 13px;
+}
+.dropdown-menu a:hover { background: #f5f5f5; }
+.dropdown-divider { height: 1px; background: #e8e8e8; margin: 4px 0; }
+
+.dropdown-submenu { position: relative; }
+.dropdown-submenu > a::after { content: ' ▶'; float: right; }
+.dropdown-submenu-content {
+    display: none;
+    position: absolute;
+    left: 100%;
+    top: 0;
+    background: white;
+    min-width: 140px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    border-radius: 4px;
+    padding: 4px 0;
+}
+.dropdown-submenu:hover .dropdown-submenu-content { display: block; }
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    margin-top: 20px;
+}
+.page-link {
+    padding: 8px 12px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    text-decoration: none;
+    color: #333;
+}
+.page-link:hover { background: #f0f0f0; }
+.page-link.active {
+    background: #1890ff;
+    color: white;
+    border-color: #1890ff;
+}
+
+/* 弹窗样式 */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    overflow: auto;
+}
+.modal-content {
+    background-color: #fefefe;
+    margin: 2vh auto !important;
+    padding: 0;
+    border: 1px solid #888;
+    width: 500px !important;
+    max-width: 90vw !important;
+    max-height: 90vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    position: relative;
+}
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 30px; border-bottom: 1px solid #e8e8e8; width: 100%; box-sizing: border-box; background: #fafafa; }
+.modal-header h3 { margin: 0; font-size: 18px; }
+.modal-close {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 28px;
+    font-weight: bold;
+    z-index: 10;
+    color: #999;
+    cursor: pointer;
+    line-height: 1;
+}
+.modal-close:hover { color: #333; }
+.modal-body { padding: 20px 30px; width: 100%; box-sizing: border-box; }
+
+.loading-spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #1890ff;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+
+<script>
+// 显示订单详情弹窗
+function showOrderDetail(orderId) {
+    const modal = document.getElementById('orderModal');
+    const content = document.getElementById('orderDetailContent');
+    modal.style.display = 'block';
+    const modalContent = modal.querySelector('.modal-content');
+    if (modalContent) {
+        modalContent.style.width = '96vw';
+        modalContent.style.maxWidth = '96vw';
+        modalContent.style.height = '96vh';
+        modalContent.style.maxHeight = '96vh';
+        modalContent.style.margin = '2vh auto';
+    }
+    content.innerHTML = '<div style="text-align: center; padding: 40px;"><div class="loading-spinner"></div><p>加载中...</p></div>';
+    fetch('/order/' + orderId + '/detail-html')
+        .then(function(res) { return res.text(); })
+        .then(function(html) {
+            content.innerHTML = html;
+            setTimeout(function() {
+                var card = content.querySelector('.card');
+                if (card) {
+                    card.style.width = '90vw';
+                    card.style.maxWidth = '90vw';
+                    card.style.margin = '0 auto';
+                }
+            }, 100);
+        })
+        .catch(function() {
+            content.innerHTML = '<div style="text-align: center; padding: 40px; color: red;">加载失败</div>';
+        });
+}
+
+function closeOrderModal() {
+    document.getElementById('orderModal').style.display = 'none';
+}
+
+window.onclick = function(event) {
+    var modal = document.getElementById('orderModal');
+    if (event.target == modal) modal.style.display = 'none';
+};
+
+function notifySuccess(orderId) {
+    if (!confirm('确定要通知成功吗？')) return;
+    fetch('/order/' + orderId + '/notify-success', { method: 'POST' })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            alert(data.success ? '✅ ' + data.message : '❌ ' + data.message);
+            if (data.success) location.reload();
+        });
+}
+
+function notifyRefund(orderId) {
+    if (!confirm('确定要通知退款吗？')) return;
+    fetch('/order/' + orderId + '/notify-refund', { method: 'POST' })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            alert(data.success ? '✅ ' + data.message : '❌ ' + data.message);
+            if (data.success) location.reload();
+        });
+}
+
+function card91Deliver(orderId) {
+    if (!confirm('确定要从91卡券自动取卡发货吗？')) return;
+    fetch('/order/' + orderId + '/card91-deliver', { method: 'POST' })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            alert(data.success ? '✅ ' + data.message : '❌ ' + data.message);
+            if (data.success) location.reload();
+        });
+}
+
+function debugSuccess(orderId) {
+    if (!confirm('【调试】确定标记为已完成？')) return;
+    fetch('/order/' + orderId + '/debug-success', { method: 'POST' })
+        .then(function(res) { return res.json(); })
+        .then(function(data) { alert(data.message); location.reload(); });
+}
+
+function debugProcessing(orderId) {
+    if (!confirm('【调试】确定标记为处理中？')) return;
+    fetch('/order/' + orderId + '/debug-processing', { method: 'POST' })
+        .then(function(res) { return res.json(); })
+        .then(function(data) { alert(data.message); location.reload(); });
+}
+
+function debugFailed(orderId) {
+    if (!confirm('【调试】确定标记为已失败？')) return;
+    fetch('/order/' + orderId + '/debug-failed', { method: 'POST' })
+        .then(function(res) { return res.json(); })
+        .then(function(data) { alert(data.message); location.reload(); });
+}
+
+// 全选/取消全选
+function toggleSelectAll(cb) {
+    document.querySelectorAll('.order-checkbox').forEach(function(c) { c.checked = cb.checked; });
+}
+
+// 批量通知成功
+function batchNotifySuccess() {
+    var checked = Array.from(document.querySelectorAll('.order-checkbox:checked'));
+    var ids = checked
+        .filter(function(c) { return (c.dataset.status == '0' || c.dataset.status == '1') && c.dataset.type == '1'; })
+        .map(function(c) { return parseInt(c.value); });
+    if (ids.length === 0) {
+        alert('请选择待处理或处理中的直充订单');
+        return;
+    }
+    if (!confirm('确定批量通知成功 ' + ids.length + ' 个订单？')) return;
+    fetch('/order/batch-notify-success', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_ids: ids })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        alert('成功: ' + data.ok_count + ' 个，失败: ' + data.fail_count + ' 个');
+        location.reload();
+    });
+}
+
+// 自动刷新
+var autoRefreshEnabled = localStorage.getItem('autoRefresh') === 'true';
+var refreshTimer = null;
+var countdown = 30;
+
+function updateAutoRefreshBtn() {
+    var btn = document.getElementById('autoRefreshBtn');
+    var cd = document.getElementById('refreshCountdown');
+    if (autoRefreshEnabled) {
+        btn.textContent = '⏱ 关闭自动刷新';
+        btn.className = 'btn btn-sm btn-warning';
+    } else {
+        btn.textContent = '⏱ 开启自动刷新';
+        btn.className = 'btn btn-sm';
+        if (cd) cd.textContent = '';
+    }
+}
+
+function startAutoRefresh() {
+    countdown = 30;
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(function() {
+        countdown--;
+        var cd = document.getElementById('refreshCountdown');
+        if (cd) cd.textContent = countdown + '秒后自动刷新...';
+        if (countdown <= 0) {
+            location.reload();
+        }
+    }, 1000);
+}
+
+function toggleAutoRefresh() {
+    autoRefreshEnabled = !autoRefreshEnabled;
+    localStorage.setItem('autoRefresh', autoRefreshEnabled);
+    updateAutoRefreshBtn();
+    if (autoRefreshEnabled) {
+        startAutoRefresh();
+    } else {
+        if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+        var cd = document.getElementById('refreshCountdown');
+        if (cd) cd.textContent = '';
+    }
+}
+
+updateAutoRefreshBtn();
+if (autoRefreshEnabled) startAutoRefresh();
+</script>
+
+{% endblock %}

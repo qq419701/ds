@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}订单管理系统{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    {% if current_user.is_authenticated %}
+    <nav class="navbar">
+        <div class="navbar-brand">📦 订单管理系统</div>
+        <button class="navbar-toggle" id="navbarToggle" onclick="toggleNavMenu()" aria-label="菜单">☰</button>
+        <div class="navbar-menu" id="navbarMenu">
+            {% if current_user.is_admin %}
+            <a href="{{ url_for('shop.shop_list') }}" class="nav-link">🏪 店铺管理</a>
+            {% endif %}
+            <a href="{{ url_for('order.order_list') }}" class="nav-link">
+                📦 订单管理
+                <span id="pendingBadge" class="nav-badge" style="display:none;">0</span>
+            </a>
+            <a href="{{ url_for('product.product_list') }}" class="nav-link">🛍️ 商品管理</a>
+            {% if current_user.is_admin %}
+            <a href="{{ url_for('statistics.index') }}" class="nav-link">📊 统计报表</a>
+            <a href="{{ url_for('user.user_list') }}" class="nav-link">👥 用户管理</a>
+            <a href="{{ url_for('notification.log_list') }}" class="nav-link">🔔 通知日志</a>
+            <a href="{{ url_for('operation_log.log_list') }}" class="nav-link">📋 操作日志</a>
+            <a href="{{ url_for('api_log.log_list') }}" class="nav-link">📡 API日志</a>
+            {% endif %}
+        </div>
+        <div class="navbar-user">
+            <button id="soundToggleBtn" onclick="toggleSound()" class="btn btn-sm" title="声音提醒开关">🔔</button>
+            <span>{{ current_user.name or current_user.username }}</span>
+            <a href="{{ url_for('auth.logout') }}" class="btn btn-sm">退出</a>
+        </div>
+    </nav>
+    {% endif %}
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+
+    {% if current_user.is_authenticated %}
+    <script>
+    // ===== 声音提醒 =====
+    var soundEnabled = localStorage.getItem('soundEnabled') !== 'false';
+    var originalTitle = document.title;
+    var titleFlashTimer = null;
+
+    function updateSoundBtn() {
+        var btn = document.getElementById('soundToggleBtn');
+        if (btn) btn.textContent = soundEnabled ? '🔔' : '🔕';
+    }
+    updateSoundBtn();
+
+    function toggleSound() {
+        soundEnabled = !soundEnabled;
+        localStorage.setItem('soundEnabled', soundEnabled);
+        updateSoundBtn();
+    }
+
+    function playBeep() {
+        try {
+            var ctx = new (window.AudioContext || window.webkitAudioContext)();
+            var osc = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.value = 880;
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.5);
+        } catch(e) {}
+    }
+
+    function flashTitle(msg) {
+        if (titleFlashTimer) return;
+        var show = true;
+        titleFlashTimer = setInterval(function() {
+            document.title = show ? msg : originalTitle;
+            show = !show;
+        }, 1000);
+        setTimeout(function() {
+            clearInterval(titleFlashTimer);
+            titleFlashTimer = null;
+            document.title = originalTitle;
+        }, 10000);
+    }
+
+    function checkNewOrders() {
+        fetch('/api/new-order-count')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.count > 0 && soundEnabled) {
+                    playBeep();
+                    flashTitle('【新订单】' + data.count + '个');
+                }
+                var badge = document.getElementById('pendingBadge');
+                if (badge) {
+                    if (data.pending > 0) {
+                        badge.textContent = data.pending;
+                        badge.style.display = 'inline';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
+            })
+            .catch(function() {});
+    }
+
+    // 每15秒检查一次新订单
+    setInterval(checkNewOrders, 15000);
+
+    // ===== 移动端导航 =====
+    function toggleNavMenu() {
+        var menu = document.getElementById('navbarMenu');
+        if (menu) menu.classList.toggle('open');
+    }
+    </script>
+    {% endif %}
+</body>
+</html>

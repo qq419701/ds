@@ -1,0 +1,69 @@
+{% extends "layouts/base.html" %}
+{% block title %}店铺管理{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="flex justify-between items-center mb-4">
+        <div class="card-title">🏪 店铺管理</div>
+        <a href="{{ url_for('shop.shop_create') }}" class="btn btn-primary">+ 新建店铺</a>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>店铺名称</th>
+                    <th>店铺代码</th>
+                    <th>店铺类型</th>
+                    <th>状态</th>
+                    <th>到期时间</th>
+                    <th>通知状态</th>
+                    <th>91卡券</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for shop in shops %}
+                <tr>
+                    <td>{{ shop.shop_name }}</td>
+                    <td>{{ shop.shop_code }}</td>
+                    <td>{{ shop.shop_type_label }}</td>
+                    <td>
+                        {% if shop.is_enabled == 1 %}
+                        <span class="badge badge-success">启用</span>
+                        {% else %}
+                        <span class="badge badge-danger">禁用</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ shop.expire_time.strftime('%Y-%m-%d') if shop.expire_time else '-' }}</td>
+                    <td>
+                        {% if shop.notify_enabled == 1 %}
+                        <span class="badge badge-info">🔔 已启用</span>
+                        {% else %}
+                        <span class="badge badge-default">未启用</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if shop.card91_api_key %}
+                        <span class="badge badge-success">✅ 已配置</span>
+                        {% else %}
+                        <span class="badge badge-default">未配置</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('shop.shop_edit', shop_id=shop.id) }}" class="btn btn-sm">编辑</a>
+                        <form method="POST" action="{{ url_for('shop.shop_delete', shop_id=shop.id) }}" style="display:inline;"
+                              onsubmit="return confirm('确认删除此店铺？')">
+                            <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not shops %}
+                <tr><td colspan="8" class="text-center">暂无店铺数据</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
