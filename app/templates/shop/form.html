@@ -369,6 +369,30 @@ function showToast(message) {
         {% endif %}
 
         <div class="form-group">
+        <!-- ========== 京东联盟配置 ========== -->
+        <div class="section-title">🔗 京东联盟API配置 <small class="text-muted">（用于商品管理一键获取商品信息，设置一次即可）</small></div>
+        <div style="background:#e6f7ff;border:1px solid #91d5ff;padding:14px;border-radius:6px;margin-bottom:16px;font-size:13px;line-height:1.8;">
+            <b>📋 如何获取京东联盟配置：</b><br>
+            1. 登录 <a href="https://union.jd.com" target="_blank" style="color:#1890ff;"><strong>京东联盟官网</strong></a>（https://union.jd.com）<br>
+            2. 顶部菜单「工具」→「开放平台」→「创建应用」，获取 <strong>AppKey</strong> 和 <strong>SecretKey</strong><br>
+            3. 填入下方保存后，在商品管理「新建/编辑商品」页面即可使用「🚀 一键获取」功能<br>
+            4. 自动获取：商品名称、商品ID、SKU列表、套餐规格等信息，无需手动填写
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>AppKey <span style="color:red;">*</span></label>
+                <input type="text" name="jd_union_appkey" class="form-control"
+                       value="{{ shop.jd_union_appkey or '' if shop else '' }}"
+                       placeholder="在京东联盟开放平台获取，例如：544f9fd3fa4825c6ee716762506bc815">
+            </div>
+            <div class="form-group">
+                <label>SecretKey <span style="color:red;">*</span></label>
+                <input type="text" name="jd_union_secretkey" class="form-control"
+                       value="{{ shop.jd_union_secretkey or '' if shop else '' }}"
+                       placeholder="在京东联盟开放平台获取，例如：5b237de5bbc84de78ff8e1c1daab1216">
+            </div>
+        </div>
+
             <label>备注</label>
             <textarea name="remark" class="form-control" rows="3">{{ shop.remark or '' if shop else '' }}</textarea>
         </div>

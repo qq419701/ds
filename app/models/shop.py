@@ -12,7 +12,7 @@ class Shop(db.Model):
 
     # 游戏点卡配置
     game_customer_id = db.Column(db.String(50), comment='游戏点卡客户ID')
-    game_md5_secret = db.Column(db.String(500), comment='游戏点卡MD5密钥')
+    game_md5_secret = db.Column(db.String(500), comment='游���点卡MD5密钥')
     game_direct_callback_url = db.Column(db.String(500), comment='游戏直充回调地址')
     game_card_callback_url = db.Column(db.String(500), comment='游戏卡密回调地址')
     game_api_url = db.Column(db.String(500), comment='游戏点卡接口地址')
@@ -43,7 +43,11 @@ class Shop(db.Model):
     dingtalk_secret = db.Column(db.String(500), comment='钉钉机器人加签密钥')
     wecom_webhook = db.Column(db.String(500), comment='企业微信机器人Webhook地址')
 
-    # 发货方式（已废弃，默认全部手动发货）
+    # 京东联盟API配置
+    jd_union_appkey = db.Column(db.String(200), comment='京东联盟AppKey')
+    jd_union_secretkey = db.Column(db.String(500), comment='京东联盟SecretKey')
+
+    # 发货方式（已废弃）
     auto_deliver = db.Column(db.SmallInteger, default=0, comment='发货方式已废弃，保留字段兼容旧数据')
 
     # 店铺状态
